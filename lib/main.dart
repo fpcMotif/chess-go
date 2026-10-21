@@ -2,6 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'games/chess/chess_screen.dart';
+import 'games/go/go_screen.dart';
+import 'games/gomoku/gomoku_screen.dart';
+import 'games/shogi/shogi_screen.dart';
+import 'games/xiangqi/xiangqi_screen.dart';
 
 void main() {
   LicenseRegistry.addLicense(() async* {
@@ -45,10 +49,26 @@ class HomeScreen extends StatelessWidget {
       'Two players, legal-move hints',
       (_) => const ChessScreen(),
     ),
-    const _GameEntry('Go', 'Coming soon'),
-    const _GameEntry('Xiangqi', 'Coming soon'),
-    const _GameEntry('Shogi', 'Coming soon'),
-    const _GameEntry('Gomoku / Renju', 'Coming soon'),
+    _GameEntry(
+      'Go',
+      '9×9, 13×13, 19×19. Area scoring, komi 7.5',
+      (_) => const GoScreen(),
+    ),
+    _GameEntry(
+      'Xiangqi',
+      'Chinese chess, legal-move hints',
+      (_) => const XiangqiScreen(),
+    ),
+    _GameEntry(
+      'Shogi',
+      'Japanese chess with drops and promotion',
+      (_) => const ShogiScreen(),
+    ),
+    _GameEntry(
+      'Gomoku / Renju',
+      'Freestyle, standard, renju',
+      (_) => const GomokuScreen(),
+    ),
   ];
 
   @override
