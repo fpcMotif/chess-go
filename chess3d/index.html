@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chess</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <canvas id="board"></canvas>
+      <aside>
+        <h1>Chess</h1>
+        <p class="hint">Click a piece, then a square. Captures end in a brawl.</p>
+        <div id="status">White to move.</div>
+        <div id="promotion" hidden></div>
+        <ol id="moves"></ol>
+        <button id="reset">New game</button>
+      </aside>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
