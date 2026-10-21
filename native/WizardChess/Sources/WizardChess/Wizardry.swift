@@ -17,6 +17,22 @@ enum Wizardry {
     return CustomMaterial.SurfaceShader(named: "wizardSurface", in: library)
   }()
 
+  private static let abyssShader: CustomMaterial.SurfaceShader? = {
+    guard let device = MTLCreateSystemDefaultDevice(), let library = try? device.makeDefaultLibrary(bundle: .module)
+    else { return nil }
+    return CustomMaterial.SurfaceShader(named: "abyssSurface", in: library)
+  }()
+
+  static func abyss(style: Float, speed: Float, dark: UInt32, bright: UInt32) -> any RealityKit.Material {
+    guard let abyssShader, var m = try? CustomMaterial(surfaceShader: abyssShader, lightingModel: .unlit) else {
+      return UnlitMaterial(color: NSColor(hex: dark))
+    }
+    m.baseColor = .init(tint: NSColor(hex: dark))
+    m.emissiveColor = .init(color: NSColor(hex: bright))
+    m.custom.value = [style, speed, 0, 0]
+    return m
+  }
+
   static func enchant(_ stone: PhysicallyBasedMaterial, glow: UInt32) -> any RealityKit.Material {
     guard let surface, var m = try? CustomMaterial(from: stone, surfaceShader: surface) else { return stone }
     m.emissiveColor = .init(color: NSColor(hex: glow))

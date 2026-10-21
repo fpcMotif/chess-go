@@ -26,11 +26,9 @@ final class ArenaView: ARView {
     }
   }
 
-  func film(into dir: URL, model: GameModel, setup: [String], captures: [String]) async {
+  func film(into dir: URL, model: GameModel, scenes: [(setup: [String], moves: [String])]) async {
     filming = true
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    model.stage(setup)
-    try? await Task.sleep(for: .seconds(1.5))
     var frame = 0
     func shoot() async {
       arena.tick(1 / 30)
@@ -41,15 +39,19 @@ final class ArenaView: ARView {
       }
       frame += 1
     }
-    for _ in 0..<6 { await shoot() }
-    for san in captures {
-      model.playSan(san)
-      try? await Task.sleep(for: .milliseconds(200))
-      var n = 0
-      repeat {
-        await shoot()
-        n += 1
-      } while arena.isBusy && n < 260
+    for scene in scenes {
+      model.stage(scene.setup)
+      try? await Task.sleep(for: .seconds(1.5))
+      for _ in 0..<6 { await shoot() }
+      for san in scene.moves {
+        model.playSan(san)
+        try? await Task.sleep(for: .milliseconds(200))
+        var n = 0
+        repeat {
+          await shoot()
+          n += 1
+        } while arena.isBusy && n < 260
+      }
     }
     exit(0)
   }
@@ -101,7 +103,8 @@ struct BoardView: NSViewRepresentable {
     if let path = CommandLine.arguments.first(where: { $0.hasPrefix("--film=") })?.dropFirst(7) {
       Task {
         await view.film(
-          into: URL(filePath: String(path)), model: model, setup: ["e4", "d5"], captures: ["exd5", "Qxd5"])
+          into: URL(filePath: String(path)), model: model,
+          scenes: [(["e4", "d5"], ["exd5", "Qxd5"]), (["f3", "e5", "g4"], ["Qh4#"])])
       }
     }
     return view
@@ -112,7 +115,7 @@ struct BoardView: NSViewRepresentable {
     view.arena.sync(
       BoardSnapshot(
         position: model.position, selected: model.selected, hints: model.hints,
-        lastMove: model.game.lastMove, check: model.checkSquare, flipped: model.flipped,
+        lastMove: model.game.lastMove, check: model.checkSquare, mated: model.matedSquare, flipped: model.flipped,
         effect: model.effect, saga: model.saga))
   }
 }

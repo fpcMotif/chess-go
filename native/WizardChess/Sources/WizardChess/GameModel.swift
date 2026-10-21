@@ -39,6 +39,10 @@ final class GameModel {
     position.isCheck ? position.kingSquare(position.turn) : nil
   }
 
+  var matedSquare: Square? {
+    game.outcome == .checkmate ? position.kingSquare(position.turn) : nil
+  }
+
   var status: String {
     let turn = saga.army(position.turn).name
     switch game.outcome {
