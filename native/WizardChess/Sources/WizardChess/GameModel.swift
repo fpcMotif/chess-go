@@ -92,6 +92,18 @@ final class GameModel {
     }
   }
 
+  func stage(_ sans: [String]) {
+    reset()
+    for san in sans {
+      guard let m = try? position.parseSan(san) else { return }
+      _ = try? game.play(m)
+    }
+  }
+
+  func playSan(_ san: String) {
+    if let m = try? position.parseSan(san) { play(m) }
+  }
+
   func undo() {
     stopReplay()
     game.undo()

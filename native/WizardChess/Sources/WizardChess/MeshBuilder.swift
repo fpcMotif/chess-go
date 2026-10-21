@@ -39,14 +39,15 @@ struct MeshBuilder {
   }
 
   mutating func addSmoothLathe(
-    _ profile: [SIMD2<Float>], segments: Int = 28, transform: float4x4 = matrix_identity_float4x4
+    _ profile: [SIMD2<Float>], segments: Int = 28, arc: ClosedRange<Float> = 0...(2 * .pi),
+    transform: float4x4 = matrix_identity_float4x4
   ) {
     let ring = profile.indices.map { i -> SIMD2<Float> in
       let t = profile[min(i + 1, profile.count - 1)] - profile[max(i - 1, 0)]
       return length(t) > 0 ? normalize(SIMD2(t.y, -t.x)) : SIMD2(0, 1)
     }
     func vertex(_ i: Int, _ j: Int) -> (SIMD3<Float>, SIMD3<Float>) {
-      let a = Float(j) / Float(segments) * 2 * .pi
+      let a = arc.lowerBound + Float(j) / Float(segments) * (arc.upperBound - arc.lowerBound)
       let p = SIMD3(profile[i].x * cos(a), profile[i].y, profile[i].x * sin(a))
       let n = SIMD3(ring[i].x * cos(a), ring[i].y, ring[i].x * sin(a))
       return (transform.apply(p), transform.rotate(n))

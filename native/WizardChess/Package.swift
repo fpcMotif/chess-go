@@ -12,6 +12,7 @@ let package = Package(
     .executableTarget(
       name: "WizardChess",
       dependencies: ["ChessCore"],
+      resources: [.process("Art")],
       swiftSettings: [.defaultIsolation(MainActor.self)]
     ),
     .testTarget(name: "ChessCoreTests", dependencies: ["ChessCore"]),

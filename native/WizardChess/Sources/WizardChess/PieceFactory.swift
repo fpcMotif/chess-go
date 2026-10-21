@@ -31,17 +31,25 @@ enum Stone {
     return m
   }
 
+  static func tileMaterial(tint: UInt32, roughness: Float) -> PhysicallyBasedMaterial {
+    let (color, normal) = Art.tile()
+    var m = PhysicallyBasedMaterial()
+    m.baseColor = .init(tint: NSColor(hex: tint), texture: .init(color))
+    m.normal = .init(texture: .init(normal))
+    m.roughness = .init(floatLiteral: roughness)
+    return m
+  }
+
   private static var cache: [StoneKind: (TextureResource, TextureResource)] = [:]
 
   private static func textures(_ kind: StoneKind) -> (TextureResource, TextureResource) {
     if let hit = cache[kind] { return hit }
-    let made = generate(kind)
+    let made = textures(height: heightField(kind, size: 256), size: 256, relief: 2.5)
     cache[kind] = made
     return made
   }
 
-  private static func generate(_ kind: StoneKind) -> (TextureResource, TextureResource) {
-    let size = 256
+  static func heightField(_ kind: StoneKind, size: Int) -> [Float] {
     var height = [Float](repeating: 0, count: size * size)
     var rng = SplitMix(seed: kind == .marble ? 11 : 29)
     let lattice = (0..<(65 * 65)).map { _ in rng.float(0, 1) }
@@ -55,7 +63,7 @@ enum Stone {
     }
     for y in 0..<size {
       for x in 0..<size {
-        var f: Float = 0, amp: Float = 0.5, freq: Float = 4 / Float(size) * 8
+        var f: Float = 0, amp: Float = 0.5, freq: Float = 6 / Float(size)
         for _ in 0..<5 {
           f += amp * value(Float(x) * freq, Float(y) * freq)
           amp *= 0.5
@@ -64,14 +72,18 @@ enum Stone {
         let h: Float
         switch kind {
         case .marble:
-          let vein = abs(sin((Float(x) * 0.035 + Float(y) * 0.02 + f * 5)))
-          h = 0.8 + 0.2 * f - 0.35 * pow(1 - vein, 10)
+          let vein = abs(sin((Float(x) * 0.035 + Float(y) * 0.02 + f * 6)))
+          h = 0.86 + 0.14 * f - 0.32 * pow(1 - vein, 14)
         case .slate:
-          h = 0.55 + 0.45 * f
+          h = 0.62 + 0.28 * f + 0.1 * sin(Float(y) * 0.15 + f * 6)
         }
         height[y * size + x] = h
       }
     }
+    return height
+  }
+
+  static func textures(height: [Float], size: Int, relief: Float) -> (TextureResource, TextureResource) {
     var color = [UInt8](repeating: 255, count: size * size * 4)
     var normal = [UInt8](repeating: 255, count: size * size * 4)
     for y in 0..<size {
@@ -83,7 +95,7 @@ enum Stone {
         color[i * 4 + 2] = g
         let dx = height[y * size + (x + 1) % size] - height[y * size + (x + size - 1) % size]
         let dy = height[((y + 1) % size) * size + x] - height[((y + size - 1) % size) * size + x]
-        let n = normalize(SIMD3<Float>(-dx * 6, -dy * 6, 1))
+        let n = normalize(SIMD3<Float>(-dx * relief, -dy * relief, 1))
         normal[i * 4] = UInt8((n.x * 0.5 + 0.5) * 255)
         normal[i * 4 + 1] = UInt8((n.y * 0.5 + 0.5) * 255)
         normal[i * 4 + 2] = UInt8((n.z * 0.5 + 0.5) * 255)
@@ -119,7 +131,8 @@ final class PieceFactory {
       } else {
         accent = UnlitMaterial(color: NSColor(hex: army.accent))
       }
-      return PieceLook(body: Stone.material(army.stone, tint: army.tint, roughness: army.roughness), accent: accent)
+      let stone = Stone.material(army.stone, tint: army.tint, roughness: army.roughness)
+      return PieceLook(body: Wizardry.enchant(stone, glow: army.strikeColor), accent: accent)
     }
     looks = [.white: look(saga.white), .black: look(saga.black)]
 
@@ -166,6 +179,12 @@ final class PieceFactory {
       body.addRod(radius: 0.017, from: -0.45, to: 0.5, transform: .pose([0.2, 0.55, -0.08]))
       accent.addSmoothLathe([[0, 0], [0.035, 0.0], [0, 0.14]], segments: 8, transform: .translation([0.2, 1.05, -0.08]))
       accent.addEllipsoid([0.05, 0.05, 0.03], transform: .pose([-0.09, 0.42, -0.235], yaw: 0.25))
+      for k in 0..<7 {
+        let a = Float(k) / 6 * 2.4 - 1.2
+        accent.addBox(
+          [0.035, 0.09 + 0.03 * cos(a), 0.06],
+          transform: .pose([0, 0.84 + 0.13 * cos(a), 0.13 * sin(a)], pitch: a))
+      }
     case .rook:
       body.addSmoothLathe(
         plinth + [
@@ -199,11 +218,17 @@ final class PieceFactory {
       body.addSmoothLathe(
         plinth + [
           [0.27, 0.09], [0.21, 0.35], [0.15, 0.6], [0.18, 0.66], [0.16, 0.72], [0.08, 0.76], [0.11, 0.8],
-          [0.105, 0.86], [0.13, 0.9], [0.145, 1.0], [0.11, 1.1], [0.04, 1.18], [0, 1.19],
+          [0.105, 0.86], [0.13, 0.9], [0.145, 0.98], [0.12, 1.04], [0, 1.05],
         ])
+      for s: Float in [-1, 1] {
+        body.addEllipsoid([0.12, 0.17, 0.06], transform: .pose([0, 1.12, 0.045 * s], pitch: -0.28 * s))
+      }
       body.addRod(radius: 0.02, from: -0.6, to: 0.55, transform: .pose([0.22, 0.62, -0.06]))
-      accent.addEllipsoid([0.06, 0.08, 0.025], transform: .pose([0.22, 1.2, -0.06]))
-      accent.addBox([0.02, 0.2, 0.3], transform: .pose([0, 1.02, 0], roll: 0.15))
+      body.addSmoothLathe(
+        [[0.02, 0], [0.09, 0.02], [0.1, 0.05]], segments: 14, arc: 0...(1.4 * .pi),
+        transform: .pose([0.22, 1.2, -0.06], pitch: .pi / 2))
+      accent.addEllipsoid([0.055, 0.055, 0.055], transform: .translation([0.22, 1.21, -0.06]))
+      accent.addBox([0.06, 0.24, 0.015], transform: .translation([0, 1.06, -0.115]))
     case .queen:
       body.addSmoothLathe(
         plinth + [
@@ -213,6 +238,9 @@ final class PieceFactory {
       for s: Float in [-1, 1] {
         body.addEllipsoid([0.05, 0.22, 0.06], transform: .pose([0.19 * s, 0.76, -0.02], roll: 0.25 * s))
       }
+      body.addSmoothLathe(
+        [[0.37, 0.08], [0.31, 0.3], [0.22, 0.6], [0.2, 0.8], [0.235, 0.92]], segments: 18,
+        arc: (0.12 * .pi)...(0.88 * .pi))
       accent.addSmoothLathe([[0.1, 1.12], [0.12, 1.12], [0.12, 1.16], [0.1, 1.16]], segments: 20)
       for k in 0..<8 {
         let a = Float(k) / 8 * 2 * .pi
@@ -228,6 +256,9 @@ final class PieceFactory {
       for s: Float in [-1, 1] {
         body.addEllipsoid([0.06, 0.24, 0.07], transform: .pose([0.2 * s, 0.82, -0.1], pitch: 0.5, roll: 0.2 * s))
       }
+      body.addSmoothLathe(
+        [[0.38, 0.08], [0.33, 0.35], [0.25, 0.65], [0.25, 0.88], [0.295, 0.98]], segments: 18,
+        arc: (0.1 * .pi)...(0.9 * .pi))
       accent.addBox([0.06, 0.62, 0.015], transform: .translation([0, 0.42, -0.27]))
       accent.addBox([0.22, 0.04, 0.04], transform: .translation([0, 0.74, -0.27]))
       accent.addRod(radius: 0.02, from: 0.74, to: 0.86, transform: .translation([0, 0, -0.27]))

@@ -34,6 +34,7 @@ private struct Flight {
   var victim: (entity: Entity, piece: Piece, square: Square)?
   var promoteTo: Piece?
   var omen = false
+  var charged = false
   var struck = false
   var landed = false
 
@@ -48,6 +49,10 @@ private enum FxKind {
   case rubble(SIMD3<Float>, SIMD3<Float>, Float)
   case flash(Float)
   case meteor(SIMD3<Float>, SIMD3<Float>)
+  case decal(spin: Float, from: Float, to: Float, peak: Float)
+  case orbit(Entity, phase: Float)
+  case dissolve(drift: SIMD3<Float>)
+  case soul
 }
 
 private struct Fx {
@@ -85,9 +90,15 @@ final class Arena {
   private var snapshot: BoardSnapshot?
   private var time: Float = 0
   private var shake: Float = 0
+  private var slowmo: Float = 0
+  private var focus: SIMD3<Float> = .zero
+  private var focusHold: Float = 0
+  private var shownFocus: Float = 0
   private var rng = SplitMix(seed: 0xD1CE)
-  private let moon = ModelEntity(mesh: .generateSphere(radius: 5))
-  private let halo = ModelEntity(mesh: .generateSphere(radius: 7.5))
+  private let backdrop = ModelEntity(mesh: .generatePlane(width: 250, height: 141))
+  private let selectionSigil = ModelEntity(mesh: .generatePlane(width: 1.25, depth: 1.25))
+  private var auraLit: Entity?
+  private let decalMesh = MeshResource.generatePlane(width: 1, depth: 1)
   private let rim = PointLight()
   private let under = PointLight()
 
@@ -123,8 +134,26 @@ final class Arena {
     buildLights()
     camera.camera.fieldOfViewInDegrees = 38
     camera.camera.far = 400
+    backdrop.position = [0, 0, -150]
+    camera.addChild(backdrop)
     root.addChild(camera)
+    selectionSigil.isEnabled = false
+    root.addChild(selectionSigil)
     applySagaLook()
+  }
+
+  private func sigilMaterial(_ side: Side) -> UnlitMaterial {
+    var m = UnlitMaterial(texture: Art.sigil(saga, side))
+    m.color.tint = .white
+    m.blending = .transparent(opacity: 1.0)
+    return m
+  }
+
+  private func decal(_ side: Side, size: Float) -> ModelEntity {
+    let e = ModelEntity(mesh: decalMesh, materials: [sigilMaterial(side)])
+    e.scale = SIMD3(repeating: size)
+    e.components.set(OpacityComponent(opacity: 0))
+    return e
   }
 
   private func buildSky(_ seed: inout SplitMix) {
@@ -136,11 +165,7 @@ final class Arena {
       stars.addCrystal(
         radius: seed.float(0.08, 0.32), height: seed.float(0.2, 0.7), at: SIMD3(r * cos(a), z, r * sin(a)) * 120)
     }
-    root.addChild(ModelEntity(mesh: stars.mesh(), materials: [UnlitMaterial(color: NSColor(hex: 0xFFF4D6))]))
-    moon.position = [-62, -40, -95]
-    halo.position = moon.position * 1.06
-    root.addChild(moon)
-    root.addChild(halo)
+    root.addChild(ModelEntity(mesh: stars.mesh(), materials: [Arena.glow(0xFFF4D6, 0.7)]))
   }
 
   private func buildBoard(_ seed: inout SplitMix) {
@@ -189,13 +214,12 @@ final class Arena {
   }
 
   private func applySagaLook() {
-    let light = Stone.material(.marble, tint: saga.lightSquare, roughness: 0.6)
-    let dark = Stone.material(.slate, tint: saga.darkSquare, roughness: 0.7)
+    let light = Stone.tileMaterial(tint: saga.lightSquare, roughness: 0.55)
+    let dark = Stone.tileMaterial(tint: saga.darkSquare, roughness: 0.7)
     for sq in 0..<64 {
       stones[sq].model?.materials = [(fileOf(sq) + rankOf(sq)) % 2 == 1 ? light : dark]
     }
-    moon.model?.materials = [UnlitMaterial(color: NSColor(hex: saga.moon))]
-    halo.model?.materials = [Arena.glow(saga.moon, 0.12)]
+    backdrop.model?.materials = [Art.backdropMaterial(saga)]
     rim.light.color = NSColor(hex: saga.rim)
     under.light.color = NSColor(hex: saga.under)
   }
@@ -233,6 +257,17 @@ final class Arena {
       startFlights(e)
     }
     if !actorsMatch(s.position) { rebuild(s.position) }
+    let lit = s.selected.flatMap { actors[$0]?.entity }
+    if lit !== auraLit {
+      if let old = auraLit { Wizardry.set(old, dissolve: 0, aura: Wizardry.idleAura) }
+      auraLit = lit
+    }
+    if let sel = s.selected, let piece = s.position[sel] {
+      selectionSigil.model?.materials = [sigilMaterial(piece.side)]
+      selectionSigil.isEnabled = true
+    } else {
+      selectionSigil.isEnabled = false
+    }
     for sq in 0..<64 {
       let glow = glows[sq]
       if sq == s.check {
@@ -292,6 +327,12 @@ final class Arena {
     }
     actors[e.move.to] = mover
     flights.append(flight)
+    if victim != nil {
+      let mid = (squareCenter(e.move.from) + squareCenter(e.move.to)) / 2
+      let charge = decal(mover.piece.side, size: 0.3)
+      charge.position = mid + [0, 0.13, 0]
+      spawn(charge, .decal(spin: 2.4, from: 0.3, to: 2.2, peak: 0.95), life: 0.62 * flight.duration)
+    }
     if let r = e.rook, let rook = actors.removeValue(forKey: r.from) {
       actors[r.to] = rook
       flights.append(
@@ -299,9 +340,19 @@ final class Arena {
     }
   }
 
-  func tick(_ dt: Float) {
+  var isBusy: Bool { !flights.isEmpty || fx.contains { $0.life < 3 } }
+
+  func tick(_ realDt: Float) {
+    let dt = slowmo > 0 ? realDt * 0.22 : realDt
+    slowmo -= realDt
     time += dt
     ripples.removeAll { time - $0.born > 2.5 }
+    if let sel = snapshot?.selected, selectionSigil.isEnabled {
+      selectionSigil.position = squareCenter(sel) + [0, bob(sel) + 0.012, 0]
+      selectionSigil.orientation = simd_quatf(angle: time * 0.8, axis: [0, 1, 0])
+      selectionSigil.components.set(OpacityComponent(opacity: 0.75 + 0.25 * sin(time * 4)))
+    }
+    if let lit = auraLit { Wizardry.set(lit, dissolve: 0, aura: 0.55 + 0.35 * sin(time * 5)) }
     for sq in 0..<64 {
       slabs[sq].position.y = bob(sq)
       crystals[sq].position.y = 0.55 + 0.06 * sin(time * 3 + Float(sq))
@@ -311,12 +362,18 @@ final class Arena {
       }
     }
     for (sq, a) in actors where !flights.contains(where: { $0.actor === a }) {
-      a.entity.position = restPosition(sq)
+      let lift: Float = a.entity === auraLit ? 0.2 + 0.04 * sin(time * 5) : 0
+      a.entity.position = restPosition(sq) + [0, lift, 0]
       a.entity.orientation = simd_quatf(angle: 0.04 * sin(time * 0.9 + phases[sq]), axis: [0, 0, 1])
     }
     advanceFlights()
     advanceFx(dt)
-    updateCamera(dt)
+    updateCamera(realDt)
+  }
+
+  private static func facing(_ side: Side, toward d: SIMD3<Float>) -> simd_quatf {
+    let yaw = side == .white ? atan2(d.x, d.z) : atan2(-d.x, -d.z)
+    return simd_quatf(angle: yaw, axis: [0, 1, 0])
   }
 
   private static func ease(_ p: Float) -> Float {
@@ -377,8 +434,32 @@ final class Arena {
       pos = simd_mix(poised, b, SIMD3(repeating: q * q))
       lean = 0.5 * (1 - q)
     }
+    let turn = Self.ease(min(1, p / 0.3)) * (p > 0.85 ? max(0, 1 - (p - 0.85) / 0.15) : 1)
+    let face = simd_slerp(simd_quatf(angle: 0, axis: [0, 1, 0]), Self.facing(side, toward: b - a), turn)
     f.actor.entity.position = pos
-    f.actor.entity.orientation = simd_quatf(angle: lean, axis: axis)
+    f.actor.entity.orientation = simd_quatf(angle: lean, axis: axis) * face
+    let aura = p < 0.62 ? Wizardry.idleAura + (1.4 - Wizardry.idleAura) * Self.ease(p / 0.62) : max(Wizardry.idleAura, 1.4 * (1 - (p - 0.62) / 0.38))
+    Wizardry.set(f.actor.entity, dissolve: 0, aura: aura)
+
+    if let v = f.victim {
+      let fear = min(1, max(0, (p - 0.25) / 0.35))
+      let jitter = SIMD3<Float>(sin(time * 71), 0, cos(time * 59)) * 0.035 * fear
+      v.entity.position = restPosition(v.square) + jitter + [0, 0.05 * fear, 0]
+      v.entity.orientation =
+        simd_quatf(angle: -0.18 * fear, axis: axis)
+        * simd_slerp(simd_quatf(angle: 0, axis: [0, 1, 0]), Self.facing(v.piece.side, toward: a - b), Self.ease(fear))
+      Wizardry.set(v.entity, dissolve: 0, aura: Wizardry.idleAura + 0.5 * fear)
+    }
+    if p >= 0.35, !f.charged {
+      f.charged = true
+      var gem = MeshBuilder()
+      gem.addCrystal(radius: 0.06, height: 0.2, at: .zero, sides: 4)
+      let mesh = gem.mesh()
+      for i in 0..<7 {
+        let c = ModelEntity(mesh: mesh, materials: [unlit(i % 2 == 0 ? 0xFFFFFF : army.strikeColor)])
+        spawn(c, .orbit(f.actor.entity, phase: Float(i) / 7 * 2 * .pi), life: 0.27 * f.duration)
+      }
+    }
 
     if p >= 0.4, !f.omen, let v = f.victim {
       f.omen = true
@@ -396,7 +477,13 @@ final class Arena {
       case .beam: beam(at: target, color: army.strikeColor)
       case .meteor: break
       }
-      shatter(v.entity, piece: v.piece, at: target, color: army.strikeColor)
+      shatter(v.entity, piece: v.piece, at: target, color: army.strikeColor, push: normalize(b - a + [0, 0.001, 0]))
+      let scorch = decal(side, size: 1.15)
+      scorch.position.y = 0.014
+      spawn(scorch, .decal(spin: 0.25, from: 1.6, to: 1.05, peak: 1), life: 8, parent: slabs[v.square])
+      slowmo = 0.45
+      focus = target
+      focusHold = 0.9
       f.victim = nil
     }
     if p >= 1, !f.landed {
@@ -406,8 +493,8 @@ final class Arena {
     }
   }
 
-  private func spawn(_ e: Entity, _ kind: FxKind, life: Float) {
-    root.addChild(e)
+  private func spawn(_ e: Entity, _ kind: FxKind, life: Float, parent: Entity? = nil) {
+    (parent ?? root).addChild(e)
     fx.append(Fx(entity: e, kind: kind, born: time, life: life))
   }
 
@@ -492,8 +579,26 @@ final class Arena {
     spawn(light, .flash(peak), life: 0.6)
   }
 
-  private func shatter(_ victim: Entity, piece: Piece, at pos: SIMD3<Float>, color: UInt32) {
+  private func shatter(_ victim: Entity, piece: Piece, at pos: SIMD3<Float>, color: UInt32, push: SIMD3<Float>) {
     victim.removeFromParent()
+    spawn(victim, .dissolve(drift: push * 0.9 + [0, 0.25, 0]), life: 0.8)
+    let ghost = factory.makeEntity(piece)
+    ghost.name = "soul"
+    Wizardry.paint(ghost, unlit(saga.army(piece.side).strikeColor, 0.3))
+    ghost.position = pos
+    spawn(ghost, .soul, life: 2.2)
+    var spark = MeshBuilder()
+    spark.addCrystal(radius: 0.025, height: 0.16, at: .zero, sides: 3)
+    let sparkMesh = spark.mesh()
+    for i in 0..<26 {
+      let s = ModelEntity(mesh: sparkMesh, materials: [unlit(i % 3 == 0 ? 0xFFFFFF : color)])
+      let a = rng.float(0, 2 * .pi)
+      s.position = pos + [0, rng.float(0.3, 0.9), 0]
+      let speed = rng.float(3, 7)
+      spawn(
+        s, .rubble([speed * cos(a), rng.float(1.5, 6), speed * sin(a)], [0, 1, 0], rng.float(10, 20)),
+        life: rng.float(0.45, 0.85))
+    }
     let look = factory.looks[piece.side]!
     for i in 0..<30 {
       let chunk = ModelEntity(
@@ -562,6 +667,24 @@ final class Arena {
       case .meteor(let from, let to):
         e.position = simd_mix(from, to, SIMD3(repeating: k * k))
         e.scale = SIMD3(repeating: 0.8 + 0.4 * k)
+      case .decal(let spin, let from, let to, let peak):
+        e.scale = SIMD3(repeating: from + (to - from) * Self.ease(min(1, k * 1.6)))
+        e.orientation = simd_quatf(angle: spin * age, axis: [0, 1, 0])
+        e.components.set(OpacityComponent(opacity: peak * min(1, age * 4) * min(1, (1 - k) * 4)))
+      case .orbit(let anchor, let phase):
+        let a = phase + age * 7
+        let r = 0.85 - 0.45 * k
+        e.position = anchor.position(relativeTo: root) + [r * cos(a), 0.5 + 0.5 * k + 0.12 * sin(a * 2), r * sin(a)]
+        e.orientation = simd_quatf(angle: a * 2, axis: [0, 1, 0])
+        e.scale = SIMD3(repeating: min(1, age * 5))
+      case .dissolve(let drift):
+        e.position += drift * dt * (1 - k)
+        Wizardry.set(e, dissolve: min(1, k * 1.15), aura: 1.6)
+      case .soul:
+        e.position.y += 1.1 * dt
+        e.scale = SIMD3(repeating: 1 + 0.35 * k)
+        e.orientation = simd_quatf(angle: 0.8 * age, axis: [0, 1, 0])
+        e.components.set(OpacityComponent(opacity: min(1, age * 3) * (1 - k)))
       }
     }
   }
@@ -570,9 +693,13 @@ final class Arena {
     shownYaw += (yaw + targetFlip - shownYaw) * min(1, dt * 6)
     shake = max(0, shake - dt * 0.6)
     let jitter = shake > 0 ? SIMD3<Float>(sin(time * 61), sin(time * 47), sin(time * 53)) * shake * 0.35 : .zero
-    let eye = SIMD3<Float>(
-      distance * cos(pitch) * sin(shownYaw), distance * sin(pitch), distance * cos(pitch) * cos(shownYaw))
-    camera.look(at: [0, -0.2, 0] + jitter * 0.4, from: eye + jitter, relativeTo: nil)
+    focusHold -= dt
+    shownFocus += ((focusHold > 0 ? 1 : 0) - shownFocus) * min(1, dt * (focusHold > 0 ? 7 : 1.6))
+    let center = simd_mix(SIMD3<Float>(0, -0.2, 0), focus, SIMD3(repeating: 0.5 * shownFocus))
+    let reach = distance * (1 - 0.22 * shownFocus)
+    let eye = center + SIMD3<Float>(
+      reach * cos(pitch) * sin(shownYaw), reach * sin(pitch), reach * cos(pitch) * cos(shownYaw))
+    camera.look(at: center + jitter * 0.4, from: eye + jitter, relativeTo: nil)
   }
 
   func square(alongRay origin: SIMD3<Float>, _ direction: SIMD3<Float>) -> Square? {
