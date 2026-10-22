@@ -2,6 +2,7 @@ import gsap from "gsap"
 import { Board, MoveIntent, makeSimulation, update } from "../simulation.ts"
 import type { Promotion, Square } from "../sim/rules.ts"
 import type { BoardView } from "../sim/view.ts"
+import { loadCharacters } from "./characters.ts"
 import { makePieceLayer } from "./pieces.ts"
 import { makeScene } from "./scene.ts"
 
@@ -34,14 +35,16 @@ const element = <T extends HTMLElement>(id: string, kind: new () => T): T => {
   return found
 }
 
-export const start = (): void => {
+export const start = async (): Promise<void> => {
   const canvas = element("board", HTMLCanvasElement)
   const status = element("status", HTMLDivElement)
   const moves = element("moves", HTMLOListElement)
   const promotion = element("promotion", HTMLDivElement)
   const reset = element("reset", HTMLButtonElement)
 
+  status.textContent = "Summoning the pieces…"
   const scene = makeScene(canvas)
+  await loadCharacters()
   const pieces = makePieceLayer(scene)
   let runtime = makeSimulation()
   let view = runtime.inspect(Board)

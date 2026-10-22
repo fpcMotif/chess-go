@@ -1,9 +1,10 @@
 import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import type { Color, PieceSymbol, Square } from "../sim/rules.ts"
-import { buildCharacter, disposeCharacter } from "./characters.ts"
+import { buildCharacter, disposeCharacter, faceCamera } from "./characters.ts"
 import { makeHall } from "./hall.ts"
 import { runeTexture } from "./rune.ts"
+import { TILE_GRAIN, WALNUT, woodTexture } from "./wood.ts"
 
 export const SQUARE = 1
 const FILES = "abcdefgh"
@@ -17,9 +18,8 @@ export const squarePosition = (square: Square): THREE.Vector3 => {
 export const squareOf = (file: number, rank: number): Square => `${FILES.charAt(file)}${rank + 1}` as Square
 
 const PALETTE = {
-  light: 0xd8c3a0,
-  dark: 0x3e2a1a,
-  frame: 0x2a1b10,
+  light: 0xe6d3ae,
+  dark: 0x5c3a1e,
   trim: 0xb8862b,
   select: 0xf59e0b,
   legal: 0x10b981,
@@ -74,7 +74,10 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   const hall = makeHall(scene)
 
   const board = new THREE.Group()
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(9, 0.5, 9), new THREE.MeshStandardMaterial({ color: PALETTE.frame, roughness: 0.55, metalness: 0.1 }))
+  const walnut = woodTexture(WALNUT)
+  walnut.repeat.set(2, 2)
+  const walnutMaterial = new THREE.MeshPhysicalMaterial({ map: walnut, bumpMap: walnut, bumpScale: 0.004, roughness: 0.42, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.35 })
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(9, 0.5, 9), walnutMaterial)
   frame.position.y = -0.3
   frame.receiveShadow = true
   frame.castShadow = true
@@ -82,15 +85,23 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   const trim = new THREE.Mesh(new THREE.BoxGeometry(8.3, 0.02, 8.3), new THREE.MeshStandardMaterial({ color: PALETTE.trim, roughness: 0.35, metalness: 0.7 }))
   trim.position.y = -0.045
   board.add(trim)
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 5), new THREE.MeshStandardMaterial({ color: PALETTE.frame, roughness: 0.7 }))
+  const plinthWood = walnut.clone()
+  plinthWood.repeat.set(1, 3)
+  plinthWood.rotation = Math.PI / 2
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 5), new THREE.MeshPhysicalMaterial({ map: plinthWood, bumpMap: plinthWood, bumpScale: 0.006, roughness: 0.6, clearcoat: 0.25 }))
   plinth.position.y = -1.85
   board.add(plinth)
   const squares = new Map<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>()
   const squareGeometry = new THREE.BoxGeometry(SQUARE, 0.1, SQUARE)
+  const grain = woodTexture(TILE_GRAIN)
   for (let file = 0; file < 8; file++) {
     for (let rank = 0; rank < 8; rank++) {
       const square = squareOf(file, rank)
-      const tile = new THREE.Mesh(squareGeometry, new THREE.MeshStandardMaterial({ color: (file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light, roughness: 0.3, metalness: 0.05 }))
+      const tileGrain = grain.clone()
+      tileGrain.repeat.set(0.5, 0.5)
+      tileGrain.offset.set((file * 0.37) % 0.5, (rank * 0.23) % 0.5)
+      tileGrain.rotation = (file + rank) % 2 === 0 ? Math.PI / 2 : 0
+      const tile = new THREE.Mesh(squareGeometry, new THREE.MeshPhysicalMaterial({ map: tileGrain, color: (file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light, roughness: 0.38, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25 }))
       tile.position.copy(squarePosition(square))
       tile.receiveShadow = true
       tile.userData = { square }
@@ -174,6 +185,7 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
       rune.rotation.z = time * 0.4
       runeLight.intensity = rune.visible ? 3.5 + Math.sin(time * 5) * 0.8 : 0
       for (const marker of markers.children) marker.scale.setScalar(1 + Math.sin(time * 4) * 0.06)
+      faceCamera(scene, camera)
       renderer.render(scene, camera)
     },
     resize() {
