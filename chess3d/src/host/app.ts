@@ -37,6 +37,7 @@ const DEMO_MOVE_PAUSE_MS = 600
 const DEMO_RESTART_MS = 5000
 const DEMO_ORBIT_SPEED = 0.8
 const STATUS_RISE = 14
+const PANEL_STYLE_KEY = "chess3d.panel-style"
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -61,6 +62,25 @@ export const start = async (): Promise<void> => {
   const opponentChoice = element("opponent", HTMLDivElement)
   const sideChoice = element("side", HTMLDivElement)
   const sideField = element("side-choice", HTMLFieldSetElement)
+  const styleChoice = element("panel-style", HTMLDivElement)
+
+  const applyStyle = (value: string): void => {
+    document.documentElement.dataset["style"] = value
+    pressOnly(styleChoice, value)
+  }
+  try {
+    applyStyle(localStorage.getItem(PANEL_STYLE_KEY) === "astral" ? "astral" : "classic")
+  } catch {
+    applyStyle("classic")
+  }
+  styleChoice.addEventListener("click", (event) => {
+    const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
+    if (value !== "classic" && value !== "astral") return
+    applyStyle(value)
+    try {
+      localStorage.setItem(PANEL_STYLE_KEY, value)
+    } catch {}
+  })
 
   status.textContent = "Summoning the pieces…"
   const scene = makeScene(canvas)
@@ -96,7 +116,11 @@ export const start = async (): Promise<void> => {
     moves.replaceChildren(
       ...Array.from({ length: Math.ceil(view.history.length / 2) }, (_, index) => {
         const item = document.createElement("li")
-        item.textContent = `${view.history[index * 2] ?? ""} ${view.history[index * 2 + 1] ?? ""}`
+        for (const move of [view.history[index * 2], view.history[index * 2 + 1]]) {
+          const cell = document.createElement("span")
+          cell.textContent = move ?? ""
+          item.append(cell)
+        }
         return item
       })
     )
@@ -215,7 +239,7 @@ export const start = async (): Promise<void> => {
   }
 
   opponentChoice.addEventListener("click", (event) => {
-    const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
+    const value = event.target instanceof Element ? event.target.closest("button")?.dataset["value"] : undefined
     if (value === undefined) return
     opponent = isLevel(value) ? value : null
     const leavingDemo = demo && value !== "demo"
