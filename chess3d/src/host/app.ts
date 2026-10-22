@@ -1,10 +1,12 @@
 import gsap from "gsap"
 import { Board, MoveIntent, makeSimulation, update } from "../simulation.ts"
-import type { Promotion, Square } from "../sim/rules.ts"
+import type { Color, Promotion, Square } from "../sim/rules.ts"
 import type { BoardView } from "../sim/view.ts"
 import { loadCharacters } from "./characters.ts"
+import { LEVELS, makeEngine, type Engine, type Level } from "./engine.ts"
 import { makePieceLayer } from "./pieces.ts"
 import { makeScene } from "./scene.ts"
+import { stockfishTransport } from "./stockfish.ts"
 
 const PROMOTIONS: ReadonlyArray<{ readonly piece: Promotion; readonly label: string }> = [
   { piece: "q", label: "Queen" },
@@ -29,6 +31,14 @@ const describe = (view: BoardView): string => {
   }
 }
 
+const SEAT_DISTANCE = 10.5
+
+const isLevel = (value: string): value is Level => value in LEVELS
+
+const pressOnly = (group: HTMLElement, value: string): void => {
+  for (const button of group.querySelectorAll("button")) button.setAttribute("aria-pressed", String(button.dataset["value"] === value))
+}
+
 const element = <T extends HTMLElement>(id: string, kind: new () => T): T => {
   const found = document.getElementById(id)
   if (!(found instanceof kind)) throw new Error(`Missing #${id}`)
@@ -41,6 +51,9 @@ export const start = async (): Promise<void> => {
   const moves = element("moves", HTMLOListElement)
   const promotion = element("promotion", HTMLDivElement)
   const reset = element("reset", HTMLButtonElement)
+  const opponentChoice = element("opponent", HTMLDivElement)
+  const sideChoice = element("side", HTMLDivElement)
+  const sideField = element("side-choice", HTMLFieldSetElement)
 
   status.textContent = "Summoning the pieces…"
   const scene = makeScene(canvas)
@@ -50,6 +63,13 @@ export const start = async (): Promise<void> => {
   let view = runtime.inspect(Board)
   let selected: Square | null = null
   let busy = false
+  let opponent: Level | null = null
+  let human: Color = "w"
+  let engine: Engine | null = null
+  let thinking = false
+  let round = 0
+
+  const computerToMove = (): boolean => opponent !== null && view.turn !== human && view.outcome.kind === "playing"
 
   const paint = (): void => {
     const legal = view.legal.filter((move) => move.from === selected)
@@ -58,9 +78,10 @@ export const start = async (): Promise<void> => {
       selected,
       legal: legal.map((move) => move.to),
       captures: legal.filter((move) => occupied.has(move.to) || (view.pieces.find((piece) => piece.square === move.from)?.kind === "p" && move.from.charAt(0) !== move.to.charAt(0))).map((move) => move.to),
-      last: view.lastMove === null ? [] : [view.lastMove.from, view.lastMove.to]
+      last: view.lastMove === null ? [] : [view.lastMove.from, view.lastMove.to],
+      checked: view.checked
     })
-    status.textContent = describe(view)
+    status.textContent = opponent !== null && thinking ? `Stockfish (${LEVELS[opponent].label}) is thinking…` : describe(view)
     moves.replaceChildren(
       ...Array.from({ length: Math.ceil(view.history.length / 2) }, (_, index) => {
         const item = document.createElement("li")
@@ -78,6 +99,26 @@ export const start = async (): Promise<void> => {
     await pieces.sync(view)
     busy = false
     if (view.outcome.kind !== "playing") gsap.fromTo(status, { scale: 1 }, { scale: 1.15, yoyo: true, repeat: 1, duration: 0.25 })
+    void playComputer()
+  }
+
+  const playComputer = async (): Promise<void> => {
+    if (opponent === null || thinking || !computerToMove()) return
+    const level = opponent
+    const started = round
+    engine ??= makeEngine(stockfishTransport())
+    thinking = true
+    paint()
+    try {
+      const move = await engine.bestMove(view.uci, level)
+      if (started !== round) return
+      thinking = false
+      send(move.from, move.to, move.promotion)
+    } catch (error) {
+      if (started !== round) return
+      thinking = false
+      status.textContent = `Stockfish could not move: ${error instanceof Error ? error.message : String(error)}`
+    }
   }
 
   const send = (from: Square, to: Square, promote: Promotion | null): void => {
@@ -108,7 +149,14 @@ export const start = async (): Promise<void> => {
   }
 
   canvas.addEventListener("pointerdown", (event) => {
-    if (busy || !promotion.hidden || view.outcome.kind !== "playing") return
+    if (!promotion.hidden) {
+      promotion.hidden = true
+      selected = null
+      pieces.lift(null)
+      paint()
+      return
+    }
+    if (busy || thinking || computerToMove() || view.outcome.kind !== "playing") return
     const square = scene.pick(event.clientX, event.clientY)
     if (square === null) return
     const own = view.pieces.find((piece) => piece.square === square && piece.color === view.turn)
@@ -128,12 +176,46 @@ export const start = async (): Promise<void> => {
     paint()
   })
 
-  reset.addEventListener("click", () => {
+  const seat = (color: Color): void => {
+    const z = color === "w" ? SEAT_DISTANCE : -SEAT_DISTANCE
+    gsap.to(scene.camera.position, { x: 0, y: 9.5, z, duration: 1.1, ease: "power2.inOut", onUpdate: () => scene.controls.update() })
+  }
+
+  const newGame = (): void => {
+    round += 1
+    thinking = false
     runtime = makeSimulation()
     selected = null
     promotion.hidden = true
+    pieces.lift(null)
+    engine?.newGame()
     void refresh()
+  }
+
+  opponentChoice.addEventListener("click", (event) => {
+    const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
+    if (value === undefined) return
+    opponent = isLevel(value) ? value : null
+    pressOnly(opponentChoice, value)
+    sideField.hidden = opponent === null
+    if (opponent === null && human === "b") {
+      human = "w"
+      pressOnly(sideChoice, "w")
+      seat("w")
+    }
+    newGame()
   })
+
+  sideChoice.addEventListener("click", (event) => {
+    const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
+    if (value !== "w" && value !== "b") return
+    human = value
+    pressOnly(sideChoice, value)
+    seat(value)
+    newGame()
+  })
+
+  reset.addEventListener("click", newGame)
 
   window.addEventListener("resize", () => scene.resize())
   void refresh()

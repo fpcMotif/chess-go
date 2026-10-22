@@ -14,6 +14,8 @@ export interface BoardView {
   readonly legal: ReadonlyArray<LegalMove>
   readonly outcome: Outcome
   readonly history: ReadonlyArray<string>
+  readonly uci: ReadonlyArray<string>
+  readonly checked: Square | null
   readonly lastMove: AppliedMove | null
 }
 
@@ -31,12 +33,15 @@ export const Board = Game.Inspector(
       const piece = match.data.piece.get()
       pieces.push({ id: match.entity.id, color: piece.color, kind: piece.kind, square: match.data.at.get() })
     }
+    const turn = game.turn()
     return {
       pieces,
-      turn: game.turn(),
+      turn,
       legal: legalMoves(game),
       outcome: outcomeOf(game),
       history: record.history,
+      uci: game.history({ verbose: true }).map((move) => move.lan),
+      checked: game.inCheck() ? (pieces.find((piece) => piece.kind === "k" && piece.color === turn)?.square ?? null) : null,
       lastMove: record.lastMove
     }
   }

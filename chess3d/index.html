@@ -15,6 +15,22 @@
       <aside>
         <h1>Chess</h1>
         <p class="hint">Click a piece, then a square. Captures end in a brawl.</p>
+        <fieldset class="choice">
+          <legend>Opponent</legend>
+          <div id="opponent" class="segmented">
+            <button type="button" data-value="friend" aria-pressed="true">Friend</button>
+            <button type="button" data-value="easy" aria-pressed="false">Easy</button>
+            <button type="button" data-value="tricky" aria-pressed="false">Tricky</button>
+            <button type="button" data-value="hard" aria-pressed="false">Hard</button>
+          </div>
+        </fieldset>
+        <fieldset class="choice" id="side-choice" hidden>
+          <legend>You play</legend>
+          <div id="side" class="segmented">
+            <button type="button" data-value="w" aria-pressed="true">White</button>
+            <button type="button" data-value="b" aria-pressed="false">Black</button>
+          </div>
+        </fieldset>
         <div id="status">White to move.</div>
         <div id="promotion" hidden></div>
         <ol id="moves"></ol>

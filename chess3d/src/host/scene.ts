@@ -37,7 +37,7 @@ export interface Scene {
   readonly markers: THREE.Group
   makePiece(color: Color, kind: PieceSymbol): THREE.Group
   setPieceKind(figure: THREE.Group, color: Color, kind: PieceSymbol): void
-  highlight(options: { readonly selected: Square | null; readonly legal: ReadonlyArray<Square>; readonly captures: ReadonlyArray<Square>; readonly last: ReadonlyArray<Square> }): void
+  highlight(options: { readonly selected: Square | null; readonly legal: ReadonlyArray<Square>; readonly captures: ReadonlyArray<Square>; readonly last: ReadonlyArray<Square>; readonly checked: Square | null }): void
   pick(clientX: number, clientY: number): Square | null
   render(): void
   resize(): void
@@ -125,6 +125,8 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   const runeLight = new THREE.PointLight(PALETTE.select, 0, 3, 2)
   runeLight.position.y = 0.4
   rune.add(runeLight)
+  const checkLight = new THREE.PointLight(PALETTE.capture, 0, 3, 2)
+  scene.add(checkLight)
   const clock = new THREE.Clock()
 
   const api: Scene = {
@@ -146,18 +148,31 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
       figure.clear()
       figure.add(buildCharacter(color, kind))
     },
-    highlight({ selected, legal, captures, last }) {
+    highlight({ selected, legal, captures, last, checked }) {
       for (const [square, tile] of squares) {
         const file = FILES.indexOf(square.charAt(0))
         const rank = Number(square.charAt(1)) - 1
         tile.material.color.setHex((file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light)
         tile.material.emissive.setHex(0)
         if (last.includes(square)) tile.material.emissive.setHex(PALETTE.last).multiplyScalar(0.18)
+        if (square === checked) tile.material.emissive.setHex(PALETTE.capture).multiplyScalar(0.55)
       }
       rune.visible = selected !== null
       runeLight.intensity = selected === null ? 0 : 4
       if (selected !== null) rune.position.copy(squarePosition(selected)).setY(0.062)
       markers.clear()
+      checkLight.intensity = 0
+      if (checked !== null) {
+        const warning = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 48), new THREE.MeshBasicMaterial({ color: PALETTE.capture, transparent: true, opacity: 0.95, depthWrite: false }))
+        warning.rotation.x = -Math.PI / 2
+        warning.position.copy(squarePosition(checked)).setY(0.065)
+        const glow = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.62, 48), new THREE.MeshBasicMaterial({ color: PALETTE.capture, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }))
+        glow.rotation.x = -Math.PI / 2
+        glow.position.copy(warning.position)
+        markers.add(glow, warning)
+        checkLight.position.copy(squarePosition(checked)).setY(0.6)
+        checkLight.intensity = 6
+      }
       for (const square of legal) {
         const capture = captures.includes(square)
         const marker = new THREE.Mesh(capture ? ring : dot, new THREE.MeshBasicMaterial({ color: capture ? PALETTE.capture : PALETTE.legal, transparent: true, opacity: 0.95, depthWrite: false }))

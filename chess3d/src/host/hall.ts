@@ -74,7 +74,7 @@ export const makeHall = (scene: THREE.Scene): Hall => {
   }
   for (let index = 0; index < 64; index++) {
     const angle = random() * Math.PI * 2
-    const radius = 5.4 + random() * 5
+    const radius = 6.4 + random() * 4.5
     const base = new THREE.Vector3(Math.cos(angle) * radius, 0.8 + random() * 5.5, Math.sin(angle) * radius)
     const item = candle(0.3 + random() * 0.4)
     item.position.copy(base)
