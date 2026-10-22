@@ -79,12 +79,12 @@ export const start = async (): Promise<void> => {
   scene.controls.autoRotateSpeed = DEMO_ORBIT_SPEED
   await loadCharacters()
   const pieces = makePieceLayer(scene)
-  scene.pieceSet = style
+  scene.setStyle(style)
   styleChoice.addEventListener("click", (event) => {
     const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
     if ((value !== "classic" && value !== "astral") || value === scene.pieceSet) return
     applyStyle(value)
-    scene.pieceSet = value
+    scene.setStyle(value)
     pieces.restyle()
     try {
       localStorage.setItem(PANEL_STYLE_KEY, value)

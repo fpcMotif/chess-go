@@ -22,7 +22,7 @@ export interface Hall {
 }
 
 let cachedGlow: THREE.CanvasTexture | null = null
-const glowTexture = (): THREE.CanvasTexture => {
+export const glowTexture = (): THREE.CanvasTexture => {
   if (cachedGlow !== null) return cachedGlow
   const canvas = document.createElement("canvas")
   canvas.width = canvas.height = 64

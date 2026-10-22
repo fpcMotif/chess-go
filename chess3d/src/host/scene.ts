@@ -2,6 +2,7 @@ import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import type { Color, PieceSymbol, Square } from "../sim/rules.ts"
 import { buildCharacter, disposeCharacter, faceCamera, type PieceSet } from "./characters.ts"
+import { chartTexture, makeObservatory } from "./astral.ts"
 import { makeHall } from "./hall.ts"
 import { runeTexture } from "./rune.ts"
 import { makeShockwave } from "./shockwave.ts"
@@ -30,6 +31,14 @@ const PALETTE = {
   last: 0xffb95f
 } as const
 
+const TILES: Record<PieceSet, { readonly light: number; readonly dark: number }> = {
+  classic: { light: PALETTE.light, dark: PALETTE.dark },
+  astral: { light: 0xb4bfdc, dark: 0x3a4677 }
+}
+
+const CLASSIC_BACKGROUND = 0xd9ccb4
+const ASTRAL_BACKGROUND = 0x070818
+
 export interface Scene {
   readonly renderer: THREE.WebGLRenderer
   readonly scene: THREE.Scene
@@ -38,7 +47,8 @@ export interface Scene {
   readonly board: THREE.Group
   readonly squares: ReadonlyMap<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>
   readonly markers: THREE.Group
-  pieceSet: PieceSet
+  readonly pieceSet: PieceSet
+  setStyle(set: PieceSet): void
   makePiece(color: Color, kind: PieceSymbol): THREE.Group
   setPieceKind(figure: THREE.Group, color: Color, kind: PieceSymbol): void
   highlight(options: { readonly selected: Square | null; readonly legal: ReadonlyArray<Square>; readonly captures: ReadonlyArray<Square>; readonly last: ReadonlyArray<Square>; readonly checked: Square | null }): void
@@ -56,7 +66,7 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   renderer.toneMapping = THREE.ACESFilmicToneMapping
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0xd9ccb4)
+  scene.background = new THREE.Color(CLASSIC_BACKGROUND)
   const environment = new THREE.PMREMGenerator(renderer)
   scene.environment = environment.fromScene(new RoomEnvironment(), 0.04).texture
   scene.environmentIntensity = 0.35
@@ -70,7 +80,8 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   controls.maxDistance = 20
   controls.target.set(0, 0, 0)
 
-  scene.add(new THREE.HemisphereLight(0xe8eef8, 0xb39a78, 1.1))
+  const daylight = new THREE.HemisphereLight(0xe8eef8, 0xb39a78, 1.1)
+  scene.add(daylight)
   const key = new THREE.SpotLight(0xfff2dc, 70, 40, Math.PI / 5, 0.7, 1.6)
   key.position.set(4, 11, 5)
   key.castShadow = true
@@ -78,6 +89,11 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   key.shadow.bias = -0.0005
   scene.add(key, key.target)
   const hall = makeHall(scene)
+  const hallFog = scene.fog
+  const astralFog = new THREE.FogExp2(ASTRAL_BACKGROUND, 0.012)
+  const observatory = makeObservatory(scene)
+  observatory.group.visible = false
+  let style: PieceSet = "classic"
 
   const board = new THREE.Group()
   const walnut = woodTexture(WALNUT)
@@ -98,6 +114,8 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   plinth.receiveShadow = true
   plinth.position.y = -1.85
   board.add(plinth)
+  const slate = new THREE.MeshPhysicalMaterial({ color: 0x1b2347, roughness: 0.3, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 })
+  const tileMaterials = new Map<Square, Record<PieceSet, THREE.MeshPhysicalMaterial>>()
   const squares = new Map<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>()
   const squareGeometry = new THREE.BoxGeometry(SQUARE, 0.1, SQUARE)
   const grain = woodTexture(TILE_GRAIN)
@@ -108,7 +126,15 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
       tileGrain.repeat.set(0.5, 0.5)
       tileGrain.offset.set((file * 0.37) % 0.5, (rank * 0.23) % 0.5)
       tileGrain.rotation = (file + rank) % 2 === 0 ? Math.PI / 2 : 0
-      const tile = new THREE.Mesh(squareGeometry, new THREE.MeshPhysicalMaterial({ map: tileGrain, color: (file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light, roughness: 0.38, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25 }))
+      const chart = chartTexture().clone()
+      chart.rotation = ((file * 3 + rank * 5) % 4) * (Math.PI / 2)
+      chart.center.set(0.5, 0.5)
+      const materials: Record<PieceSet, THREE.MeshPhysicalMaterial> = {
+        classic: new THREE.MeshPhysicalMaterial({ map: tileGrain, color: (file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light, roughness: 0.38, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25 }),
+        astral: new THREE.MeshPhysicalMaterial({ map: chart, color: (file + rank) % 2 === 0 ? TILES.astral.dark : TILES.astral.light, roughness: 0.15, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, sheen: 0.6, sheenColor: 0x8ea2ff })
+      }
+      tileMaterials.set(square, materials)
+      const tile = new THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>(squareGeometry, materials.classic)
       tile.position.copy(squarePosition(square))
       tile.receiveShadow = true
       tile.userData = { square }
@@ -145,7 +171,26 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
     board,
     squares,
     markers,
-    pieceSet: "classic",
+    get pieceSet() {
+      return style
+    },
+    setStyle(set) {
+      const astral = set === "astral"
+      style = set
+      hall.group.visible = !astral
+      observatory.group.visible = astral
+      daylight.visible = !astral
+      key.color.setHex(astral ? 0xc8d6ff : 0xfff2dc)
+      key.intensity = astral ? 45 : 70
+      plinth.visible = !astral
+      frame.material = astral ? slate : walnutMaterial
+      scene.background = new THREE.Color(astral ? ASTRAL_BACKGROUND : CLASSIC_BACKGROUND)
+      scene.fog = astral ? astralFog : hallFog
+      for (const [square, tile] of squares) {
+        const materials = tileMaterials.get(square)
+        if (materials !== undefined) tile.material = materials[set]
+      }
+    },
     makePiece(color, kind) {
       const figure = new THREE.Group()
       figure.add(buildCharacter(api.pieceSet, color, kind))
@@ -161,7 +206,7 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
       for (const [square, tile] of squares) {
         const file = FILES.indexOf(square.charAt(0))
         const rank = Number(square.charAt(1)) - 1
-        tile.material.color.setHex((file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light)
+        tile.material.color.setHex((file + rank) % 2 === 0 ? TILES[api.pieceSet].dark : TILES[api.pieceSet].light)
         tile.material.emissive.setHex(0)
         if (last.includes(square)) tile.material.emissive.setHex(PALETTE.last).multiplyScalar(0.18)
         if (square === checked) tile.material.emissive.setHex(PALETTE.capture).multiplyScalar(0.55)
@@ -205,7 +250,8 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
     render() {
       const time = clock.getElapsedTime()
       controls.update()
-      hall.update(time)
+      if (api.pieceSet === "astral") observatory.update(time)
+      else hall.update(time)
       rune.rotation.z = time * 0.4
       runeLight.intensity = rune.visible ? 3.5 + Math.sin(time * 5) * 0.8 : 0
       for (const marker of markers.children) marker.scale.setScalar(1 + Math.sin(time * 4) * 0.06)
