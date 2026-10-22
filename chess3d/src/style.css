@@ -1,10 +1,17 @@
 :root {
   color-scheme: dark;
-  --bg: #1a1b22;
-  --panel: #23242e;
-  --text: #ece9e2;
-  --muted: #b3b3bf;
-  --accent: #2f6fd1;
+  --bg: #0d0e14;
+  --panel: #1a1b22;
+  --panel-high: #242734;
+  --line: rgba(254, 243, 199, 0.1);
+  --text: #e3e1eb;
+  --cream: #fef3c7;
+  --muted: #b3ad9f;
+  --amber: #f59e0b;
+  --amber-deep: #b45309;
+  --amber-bright: #fbbf24;
+  --emerald: #10b981;
+  --crimson: #ef4444;
 }
 
 * {
@@ -17,12 +24,13 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "EB Garamond", Georgia, serif;
+  font-size: 17px;
 }
 
 main {
   display: grid;
-  grid-template-columns: 1fr 260px;
+  grid-template-columns: 1fr 280px;
   height: 100%;
 }
 
@@ -35,7 +43,9 @@ main {
 
 aside {
   background: var(--panel);
-  padding: 20px;
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 32px -4px rgba(0, 0, 0, 0.7);
+  padding: 22px 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -44,18 +54,27 @@ aside {
 
 h1 {
   margin: 0;
-  font-size: 22px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 26px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--cream);
 }
 
 .hint {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 #status {
-  font-size: 16px;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--cream);
+  padding: 10px 12px;
+  background: var(--panel-high);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 4px;
   transform-origin: left center;
 }
 
@@ -72,25 +91,45 @@ h1 {
 #moves {
   flex: 1;
   margin: 0;
-  padding-left: 28px;
+  padding: 6px 0 6px 34px;
   overflow-y: auto;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.6;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  line-height: 1.8;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+#moves li:nth-child(even) {
+  background: rgba(254, 243, 199, 0.025);
+}
+
+#moves li::marker {
+  color: var(--amber);
 }
 
 button {
-  background: var(--accent);
-  color: #fff;
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font: inherit;
+  background: linear-gradient(180deg, var(--amber-deep), #92400e);
+  color: #fefce8;
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 9px 14px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
+  transition: filter 160ms ease, transform 80ms ease;
 }
 
 button:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.15);
+}
+
+button:active {
+  transform: translateY(1px);
 }
 
 @media (max-width: 720px) {
@@ -101,5 +140,7 @@ button:hover {
 
   aside {
     max-height: 40vh;
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
 }
