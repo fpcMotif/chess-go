@@ -36,6 +36,7 @@ const DEMO_LEVEL: Level = "tricky"
 const DEMO_MOVE_PAUSE_MS = 600
 const DEMO_RESTART_MS = 5000
 const DEMO_ORBIT_SPEED = 0.8
+const STATUS_RISE = 14
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -102,7 +103,9 @@ export const start = async (): Promise<void> => {
 
   const refresh = async (): Promise<void> => {
     view = runtime.inspect(Board)
+    const smashed = view.lastMove !== null && view.lastMove.capturedAt !== null
     paint()
+    if (smashed) gsap.fromTo(status, { opacity: 0, y: STATUS_RISE }, { opacity: 1, y: 0, duration: 0.2, delay: 0.85, ease: "power2.out" })
     busy = true
     await pieces.sync(view)
     busy = false

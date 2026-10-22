@@ -3,11 +3,13 @@ import gsap from "gsap"
 import type { Scene } from "./scene.ts"
 import { squarePosition } from "./scene.ts"
 import { makeEffects } from "./effects.ts"
-import { PALETTES, disposeCharacter } from "./characters.ts"
+import { disposeCharacter } from "./characters.ts"
 import type { BoardView, PieceView } from "../sim/view.ts"
 
 const GOLD = 0xffd166
 const VIOLET = 0xb48cff
+const CRIMSON = 0xef4444
+const UP = new THREE.Vector3(0, 1, 0)
 
 export interface PieceLayer {
   sync(view: BoardView): Promise<void>
@@ -41,23 +43,36 @@ export const makePieceLayer = (scene: Scene): PieceLayer => {
       .to(figure.rotation, { x: 0, duration: 0.3, ease: "power2.in" }, 0.35)
       .to(figure.position, { y: 0.05, duration: 0.3, ease: "bounce.out" }, 0.35)
 
-  const brawl = (attacker: THREE.Group, isKnight: boolean, victim: { figure: THREE.Group; piece: PieceView }, to: THREE.Vector3): gsap.core.Timeline => {
+  const smash = (attacker: THREE.Group, isKnight: boolean, victim: THREE.Group, to: THREE.Vector3): gsap.core.Timeline => {
+    const apex = isKnight ? 1.3 : 0.6
+    const away = to.clone().sub(attacker.position).setY(0).normalize()
+    const flung = to.clone().addScaledVector(away, 0.9).addScaledVector(UP, 0.9)
     const timeline = gsap.timeline()
-    timeline.add(isKnight ? leap(attacker, to) : slide(attacker, to), 0)
-    timeline.to(victim.figure.rotation, { z: 0.3, duration: 0.07, yoyo: true, repeat: 5 }, 0.1)
-    timeline.to(victim.figure.position, { y: 0.25, duration: 0.2, ease: "power2.out" }, 0.3)
-    timeline.to(attacker.scale, { y: 1.3, x: 0.85, z: 0.85, duration: 0.12, ease: "power2.out" }, 0.35)
-    timeline.to(attacker.scale, { y: 1, x: 1, z: 1, duration: 0.35, ease: "elastic.out(1, 0.4)" }, 0.47)
+    timeline.to(attacker.position, { y: 0.35, duration: 0.25, ease: "power2.out" }, 0)
+    timeline.to(attacker.scale, { x: 1.05, y: 1.05, z: 1.05, duration: 0.25, ease: "power2.out" }, 0)
+    timeline.to(attacker.position, { x: to.x, z: to.z, duration: 0.35, ease: "power2.inOut" }, 0.25)
+    timeline.to(attacker.position, { y: apex, duration: 0.17, ease: "power2.out" }, 0.25)
+    timeline.to(attacker.rotation, { x: -0.25, duration: 0.17, ease: "power2.out" }, 0.25)
+    timeline.to(attacker.position, { y: 0.05, duration: 0.18, ease: "power2.in" }, 0.42)
+    timeline.to(attacker.rotation, { x: 0, duration: 0.18, ease: "power2.in" }, 0.42)
+    timeline.call(() => void effects.ringBurst(to, CRIMSON), [], 0.55)
+    timeline.to(victim.scale, { x: 1.15, y: 1.15, z: 1.15, duration: 0.05, ease: "power2.out" }, 0.58)
     timeline.call(
       () => {
-        discard(victim.figure)
-        effects.shatter(to, PALETTES[victim.piece.color].robe)
-        effects.sparks(to, GOLD)
-        void effects.shake(scene.camera)
+        effects.flash(to, GOLD)
+        effects.kick(scene.camera)
       },
       [],
-      0.47
+      0.6
     )
+    timeline.to(victim.position, { x: flung.x, y: flung.y, z: flung.z, duration: 0.22, ease: "power2.out" }, 0.6)
+    timeline.to(victim.rotation, { z: -1.2, duration: 0.24, ease: "power2.in" }, 0.6)
+    timeline.to(victim.scale, { x: 0.05, y: 0.05, z: 0.05, duration: 0.21, ease: "power2.in" }, 0.63)
+    timeline.to(attacker.scale, { y: 0.86, x: 1.14, z: 1.14, duration: 0.06, ease: "power2.out" }, 0.6)
+    timeline.call(() => void effects.embers(to, [GOLD, CRIMSON]), [], 0.62)
+    timeline.call(() => void effects.afterglow(to, GOLD), [], 0.66)
+    timeline.to(attacker.scale, { x: 1, y: 1, z: 1, duration: 0.18, ease: "back.out(1.7)" }, 0.66)
+    timeline.call(() => discard(victim), [], 0.84)
     return timeline
   }
 
@@ -94,7 +109,7 @@ export const makePieceLayer = (scene: Scene): PieceLayer => {
           const target = squarePosition(piece.square)
           const victim = [...victims].find(([, entry]) => entry.piece.square === piece.square)
           if (victim !== undefined) {
-            animations.push(brawl(current.figure, current.piece.kind === "n", victim[1], target))
+            animations.push(smash(current.figure, current.piece.kind === "n", victim[1].figure, target))
             victims.delete(victim[0])
           } else {
             animations.push(current.piece.kind === "n" ? leap(current.figure, target) : slide(current.figure, target))
