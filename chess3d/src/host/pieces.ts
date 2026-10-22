@@ -23,6 +23,7 @@ export interface PieceLayer {
   sync(view: BoardView): Promise<void>
   lift(id: number | null): void
   threaten(squares: ReadonlyArray<Square>): void
+  restyle(): void
 }
 
 export const makePieceLayer = (scene: Scene): PieceLayer => {
@@ -180,6 +181,9 @@ export const makePieceLayer = (scene: Scene): PieceLayer => {
         gsap.fromTo(figure.rotation, { z: -TREMBLE }, { z: TREMBLE, duration: 0.06, yoyo: true, repeat: -1, ease: "sine.inOut" })
         gsap.to(figure.scale, { x: 0.94, y: 0.92, z: 0.94, duration: 0.25, ease: "power2.out" })
       }
+    },
+    restyle() {
+      for (const { figure, piece } of figures.values()) scene.setPieceKind(figure, piece.color, piece.kind)
     }
   }
 }

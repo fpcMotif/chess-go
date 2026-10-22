@@ -1,7 +1,7 @@
 import * as THREE from "three"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js"
 import type { Color, PieceSymbol, Square } from "../sim/rules.ts"
-import { buildCharacter, disposeCharacter, faceCamera } from "./characters.ts"
+import { buildCharacter, disposeCharacter, faceCamera, type PieceSet } from "./characters.ts"
 import { makeHall } from "./hall.ts"
 import { runeTexture } from "./rune.ts"
 import { makeShockwave } from "./shockwave.ts"
@@ -38,6 +38,7 @@ export interface Scene {
   readonly board: THREE.Group
   readonly squares: ReadonlyMap<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>
   readonly markers: THREE.Group
+  pieceSet: PieceSet
   makePiece(color: Color, kind: PieceSymbol): THREE.Group
   setPieceKind(figure: THREE.Group, color: Color, kind: PieceSymbol): void
   highlight(options: { readonly selected: Square | null; readonly legal: ReadonlyArray<Square>; readonly captures: ReadonlyArray<Square>; readonly last: ReadonlyArray<Square>; readonly checked: Square | null }): void
@@ -144,16 +145,17 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
     board,
     squares,
     markers,
+    pieceSet: "classic",
     makePiece(color, kind) {
       const figure = new THREE.Group()
-      figure.add(buildCharacter(color, kind))
+      figure.add(buildCharacter(api.pieceSet, color, kind))
       figure.position.y = 0.05
       return figure
     },
     setPieceKind(figure, color, kind) {
       disposeCharacter(figure)
       figure.clear()
-      figure.add(buildCharacter(color, kind))
+      figure.add(buildCharacter(api.pieceSet, color, kind))
     },
     highlight({ selected, legal, captures, last, checked }) {
       for (const [square, tile] of squares) {

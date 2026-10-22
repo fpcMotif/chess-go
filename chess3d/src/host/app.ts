@@ -2,7 +2,7 @@ import gsap from "gsap"
 import { Board, MoveIntent, makeSimulation, update } from "../simulation.ts"
 import type { Color, Promotion, Square } from "../sim/rules.ts"
 import type { BoardView } from "../sim/view.ts"
-import { loadCharacters } from "./characters.ts"
+import { loadCharacters, type PieceSet } from "./characters.ts"
 import { LEVELS, makeEngine, type Engine, type Level } from "./engine.ts"
 import { makePieceLayer } from "./pieces.ts"
 import { makeScene } from "./scene.ts"
@@ -64,29 +64,32 @@ export const start = async (): Promise<void> => {
   const sideField = element("side-choice", HTMLFieldSetElement)
   const styleChoice = element("panel-style", HTMLDivElement)
 
-  const applyStyle = (value: string): void => {
+  const applyStyle = (value: PieceSet): void => {
     document.documentElement.dataset["style"] = value
     pressOnly(styleChoice, value)
   }
+  let style: PieceSet = "classic"
   try {
-    applyStyle(localStorage.getItem(PANEL_STYLE_KEY) === "astral" ? "astral" : "classic")
-  } catch {
-    applyStyle("classic")
-  }
-  styleChoice.addEventListener("click", (event) => {
-    const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
-    if (value !== "classic" && value !== "astral") return
-    applyStyle(value)
-    try {
-      localStorage.setItem(PANEL_STYLE_KEY, value)
-    } catch {}
-  })
+    style = localStorage.getItem(PANEL_STYLE_KEY) === "astral" ? "astral" : "classic"
+  } catch {}
+  applyStyle(style)
 
   status.textContent = "Summoning the pieces…"
   const scene = makeScene(canvas)
   scene.controls.autoRotateSpeed = DEMO_ORBIT_SPEED
   await loadCharacters()
   const pieces = makePieceLayer(scene)
+  scene.pieceSet = style
+  styleChoice.addEventListener("click", (event) => {
+    const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
+    if ((value !== "classic" && value !== "astral") || value === scene.pieceSet) return
+    applyStyle(value)
+    scene.pieceSet = value
+    pieces.restyle()
+    try {
+      localStorage.setItem(PANEL_STYLE_KEY, value)
+    } catch {}
+  })
   let runtime = makeSimulation()
   let view = runtime.inspect(Board)
   let selected: Square | null = null

@@ -24,6 +24,32 @@ import wnBack from "../assets/pieces/wn-back.jpg"
 import wpBack from "../assets/pieces/wp-back.jpg"
 import wqBack from "../assets/pieces/wq-back.jpg"
 import wrBack from "../assets/pieces/wr-back.jpg"
+import astralBb from "../assets/astral/bb.jpg"
+import astralBk from "../assets/astral/bk.jpg"
+import astralBn from "../assets/astral/bn.jpg"
+import astralBp from "../assets/astral/bp.jpg"
+import astralBq from "../assets/astral/bq.jpg"
+import astralBr from "../assets/astral/br.jpg"
+import astralWb from "../assets/astral/wb.jpg"
+import astralWk from "../assets/astral/wk.jpg"
+import astralWn from "../assets/astral/wn.jpg"
+import astralWp from "../assets/astral/wp.jpg"
+import astralWq from "../assets/astral/wq.jpg"
+import astralWr from "../assets/astral/wr.jpg"
+import astralBbBack from "../assets/astral/bb-back.jpg"
+import astralBkBack from "../assets/astral/bk-back.jpg"
+import astralBnBack from "../assets/astral/bn-back.jpg"
+import astralBpBack from "../assets/astral/bp-back.jpg"
+import astralBqBack from "../assets/astral/bq-back.jpg"
+import astralBrBack from "../assets/astral/br-back.jpg"
+import astralWbBack from "../assets/astral/wb-back.jpg"
+import astralWkBack from "../assets/astral/wk-back.jpg"
+import astralWnBack from "../assets/astral/wn-back.jpg"
+import astralWpBack from "../assets/astral/wp-back.jpg"
+import astralWqBack from "../assets/astral/wq-back.jpg"
+import astralWrBack from "../assets/astral/wr-back.jpg"
+
+export type PieceSet = "classic" | "astral"
 
 export interface Palette {
   readonly robe: number
@@ -35,14 +61,26 @@ export const PALETTES: Record<Color, Palette> = {
   b: { robe: 0x2c3140, glow: 0x4edea3 }
 }
 
-const SOURCES: Record<Color, Record<PieceSymbol, string>> = {
-  w: { p: wp, r: wr, n: wn, b: wb, q: wq, k: wk },
-  b: { p: bp, r: br, n: bn, b: bb, q: bq, k: bk }
+const SOURCES: Record<PieceSet, Record<Color, Record<PieceSymbol, string>>> = {
+  classic: {
+    w: { p: wp, r: wr, n: wn, b: wb, q: wq, k: wk },
+    b: { p: bp, r: br, n: bn, b: bb, q: bq, k: bk }
+  },
+  astral: {
+    w: { p: astralWp, r: astralWr, n: astralWn, b: astralWb, q: astralWq, k: astralWk },
+    b: { p: astralBp, r: astralBr, n: astralBn, b: astralBb, q: astralBq, k: astralBk }
+  }
 }
 
-const BACKS: Record<Color, Record<PieceSymbol, string>> = {
-  w: { p: wpBack, r: wrBack, n: wnBack, b: wbBack, q: wqBack, k: wkBack },
-  b: { p: bpBack, r: brBack, n: bnBack, b: bbBack, q: bqBack, k: bkBack }
+const BACKS: Record<PieceSet, Record<Color, Record<PieceSymbol, string>>> = {
+  classic: {
+    w: { p: wpBack, r: wrBack, n: wnBack, b: wbBack, q: wqBack, k: wkBack },
+    b: { p: bpBack, r: brBack, n: bnBack, b: bbBack, q: bqBack, k: bkBack }
+  },
+  astral: {
+    w: { p: astralWpBack, r: astralWrBack, n: astralWnBack, b: astralWbBack, q: astralWqBack, k: astralWkBack },
+    b: { p: astralBpBack, r: astralBrBack, n: astralBnBack, b: astralBbBack, q: astralBqBack, k: astralBkBack }
+  }
 }
 
 const HEIGHTS: Record<PieceSymbol, number> = { p: 1.15, r: 1.2, n: 1.3, b: 1.35, q: 1.45, k: 1.5 }
@@ -90,10 +128,12 @@ const loadImage = (source: string): Promise<HTMLImageElement> =>
 
 export const loadCharacters = async (): Promise<void> => {
   const jobs: Array<Promise<void>> = []
-  for (const colorSources of [...Object.values(SOURCES), ...Object.values(BACKS)]) {
-    for (const source of Object.values(colorSources)) {
-      if (textures.has(source)) continue
-      jobs.push(loadImage(source).then((image) => void textures.set(source, keyOutGreen(image))))
+  for (const set of [...Object.values(SOURCES), ...Object.values(BACKS)]) {
+    for (const colorSources of Object.values(set)) {
+      for (const source of Object.values(colorSources)) {
+        if (textures.has(source)) continue
+        jobs.push(loadImage(source).then((image) => void textures.set(source, keyOutGreen(image))))
+      }
     }
   }
   await Promise.all(jobs)
@@ -120,11 +160,11 @@ interface Card {
 
 const FACING: Record<Color, number> = { w: Math.PI, b: 0 }
 
-export const buildCharacter = (color: Color, kind: PieceSymbol): THREE.Group => {
-  const source = SOURCES[color][kind]
+export const buildCharacter = (set: PieceSet, color: Color, kind: PieceSymbol): THREE.Group => {
+  const source = SOURCES[set][color][kind]
   const map = textures.get(source)
   if (map === undefined) throw new Error("characters not loaded")
-  const backMap = textures.get(BACKS[color][kind])
+  const backMap = textures.get(BACKS[set][color][kind])
   if (backMap === undefined) throw new Error("characters not loaded")
   const height = HEIGHTS[kind]
   const card: Card = { front: cardMaterial(map), back: cardMaterial(backMap), facing: FACING[color] }
