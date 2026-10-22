@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --hot server.ts",
-    "build": "bun build index.html --outdir dist --minify --sourcemap=none",
+    "build": "bun build index.html landing.html --outdir dist --minify --sourcemap=none",
     "deploy": "bun run build && wrangler deploy",
     "check": "bun check && oxlint src && ritmo-devtools lint src/simulation.ts && bun test"
   },

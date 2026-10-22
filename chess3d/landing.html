@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#e9dcb8" />
+    <title>Chess · The Living Map</title>
+    <meta name="description" content="Enchanted 3D chess under a wizard's castle. Command stained-glass pieces, face a Stockfish archmage, and smash your way to the door. Runs in your browser." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@500;600;700&family=Caveat:wght@500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" />
+    <link rel="stylesheet" href="./src/landing/map.css" />
+  </head>
+  <body>
+    <svg id="map" class="map" viewBox="0 0 1400 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="pen" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="7" result="wobble" />
+          <feDisplacementMap in="SourceGraphic" in2="wobble" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="drawn" />
+          <feGaussianBlur in="drawn" stdDeviation="0.6" result="bleed" />
+          <feComponentTransfer in="bleed" result="soft"><feFuncA type="linear" slope="0.55" /></feComponentTransfer>
+          <feMerge><feMergeNode in="soft" /><feMergeNode in="drawn" /></feMerge>
+        </filter>
+        <symbol id="tower" overflow="visible">
+          <path pathLength="1" d="M-16 0 V-54 H16 V0" />
+          <path pathLength="1" d="M-16 -54 v-9 h7 v9 h5 v-9 h8 v9 h5 v-9 h7 v9" />
+          <path pathLength="1" d="M-21 -63 L0 -98 L21 -63" />
+          <path pathLength="1" d="M-4 0 v-13 a4 4 0 0 1 8 0 V0" />
+          <path pathLength="1" d="M4 -48 l9 9 M4 -38 l9 9 M4 -28 l9 9 M4 -18 l9 9" />
+          <path pathLength="1" d="M0 -98 v-16 l13 5 l-13 6" />
+        </symbol>
+        <symbol id="tree" overflow="visible">
+          <path pathLength="1" d="M0 0 v-9" />
+          <path pathLength="1" d="M0 -9 c-9 0 -13 -8 -8 -14 c-4 -7 3 -14 8 -12 c5 -2 12 5 8 12 c5 6 1 14 -8 14 z" />
+        </symbol>
+        <symbol id="pine" overflow="visible">
+          <path pathLength="1" d="M0 0 v-6" />
+          <path pathLength="1" d="M-8 -6 L0 -26 L8 -6 Z" />
+          <path pathLength="1" d="M-6 -15 L0 -31 L6 -15" />
+        </symbol>
+        <symbol id="print" overflow="visible">
+          <ellipse cx="0" cy="0" rx="2.2" ry="3.1" />
+          <circle cx="-1.9" cy="-4.2" r="1" />
+          <circle cx="0" cy="-5" r="1" />
+          <circle cx="1.9" cy="-4.2" r="1" />
+        </symbol>
+      </defs>
+
+      <g id="world" class="world">
+        <g class="ink" id="terrain" style="--s:0;--e:.2">
+          <path pathLength="1" d="M150 560 C120 620 140 720 220 760 C300 800 400 780 430 720 C460 660 420 600 360 580 C300 560 200 520 150 560 Z" />
+          <path pathLength="1" d="M430 720 C520 740 560 820 640 850 C720 880 820 860 900 920 C960 960 1000 1000 1050 1000" />
+          <path pathLength="1" d="M440 700 C530 720 575 800 655 830 C735 860 835 842 915 902 C975 942 1015 1000 1065 1000" />
+          <g id="water"></g>
+          <g id="grass"></g>
+        </g>
+
+        <g class="ink" id="hills" style="--s:.06;--e:.3">
+          <path pathLength="1" d="M1080 262 L1130 172 L1165 216 L1200 142 L1250 226 L1280 186 L1330 264" />
+          <path pathLength="1" d="M1200 142 l-11 28 h22 Z M1130 172 l-8 20 h16 Z" />
+          <path pathLength="1" d="M60 860 q80 -60 160 0" />
+          <path pathLength="1" d="M180 880 q90 -70 180 0" />
+          <path pathLength="1" d="M330 330 h44 v44 h-44 v-33 h33 v22 h-22 v-11" />
+          <path pathLength="1" d="M420 282 h40 M420 294 h40 M420 306 h40 M420 318 h40" />
+        </g>
+
+        <g class="ink" id="roads" style="--s:.12;--e:.36">
+          <path pathLength="1" d="M550 1000 C570 930 630 900 650 850 C680 790 670 730 690 684" />
+          <path pathLength="1" d="M572 1000 C592 930 652 900 672 850 C702 790 692 730 710 684" />
+          <path id="road-mid" pathLength="1" d="M561 1000 C581 930 641 900 661 850 C691 790 681 730 700 684" />
+          <path pathLength="1" d="M636 828 L674 822 L680 858 L642 864 Z" />
+          <path pathLength="1" d="M648 862 a7 7 0 0 1 12 -2 M664 860 a7 7 0 0 1 12 -2" />
+        </g>
+
+        <g class="ink" id="walls" style="--s:.22;--e:.46">
+          <path pathLength="1" d="M520 340 Q700 336 880 340" />
+          <path pathLength="1" d="M520 340 V680" />
+          <path pathLength="1" d="M880 340 V680" />
+          <path pathLength="1" d="M520 680 Q700 684 880 680" />
+          <g id="merlons"></g>
+        </g>
+
+        <g class="ink" id="towers" style="--s:.3;--e:.56">
+          <use href="#tower" transform="translate(520 345)" />
+          <use href="#tower" transform="translate(880 345)" />
+          <use href="#tower" transform="translate(520 685)" />
+          <use href="#tower" transform="translate(880 685)" />
+          <use href="#tower" transform="translate(668 684) scale(.7)" />
+          <use href="#tower" transform="translate(732 684) scale(.7)" />
+          <path pathLength="1" d="M684 684 V656 a16 16 0 0 1 32 0 V684" />
+          <path pathLength="1" d="M932 330 V240 H968 V330" />
+          <path pathLength="1" d="M932 240 v-9 h8 v9 h6 v-9 h8 v9 h6 v-9 h8 v9" />
+          <path pathLength="1" d="M926 240 a24 24 0 0 1 48 0" />
+          <path pathLength="1" d="M950 216 l18 -22" />
+          <path pathLength="1" d="M976 184 v14 M969 191 h14" />
+          <path pathLength="1" d="M954 320 l8 8 M954 308 l8 8 M954 296 l8 8 M954 284 l8 8 M954 272 l8 8 M954 260 l8 8" />
+        </g>
+
+        <g class="ink" id="buildings" style="--s:.4;--e:.62">
+          <path pathLength="1" d="M655 470 V370 H745 V470" />
+          <path pathLength="1" d="M655 370 v-10 h10 v10 h8 v-10 h10 v10 h8 v-10 h10 v10 h8 v-10 h10 v10 h8 v-10 h10 v10 h8 v-10 h10 v10" />
+          <path pathLength="1" d="M650 360 L700 318 L750 360" />
+          <path pathLength="1" d="M700 318 v-22 l15 6 l-15 6" />
+          <path pathLength="1" d="M690 470 v-20 a10 10 0 0 1 20 0 v20" />
+          <path pathLength="1" d="M676 424 v-12 M724 424 v-12 M700 404 v-12" />
+          <g id="hatch"></g>
+          <path pathLength="1" d="M530 610 V566 H612 V610" />
+          <path pathLength="1" d="M524 566 L571 530 L618 566" />
+          <path pathLength="1" d="M544 600 v-13 a6 6 0 0 1 12 0 v13 M566 600 v-13 a6 6 0 0 1 12 0 v13 M588 600 v-13 a6 6 0 0 1 12 0 v13" />
+          <path pathLength="1" d="M788 610 V566 H870 V610" />
+          <path pathLength="1" d="M782 566 L829 530 L876 566" />
+          <path pathLength="1" d="M802 600 v-13 a6 6 0 0 1 12 0 v13 M824 600 v-13 a6 6 0 0 1 12 0 v13 M846 600 v-13 a6 6 0 0 1 12 0 v13" />
+        </g>
+
+        <g class="ink" id="board" style="--s:.5;--e:.72"></g>
+
+        <g class="ink" id="forest" style="--s:.3;--e:.82"></g>
+
+        <g class="ink" id="field" style="--s:.56;--e:.8">
+          <path pathLength="1" d="M382 430 c0 -12 36 -12 36 0 c0 12 -36 12 -36 0 z" />
+          <path pathLength="1" d="M360 430 c0 -24 80 -24 80 0 c0 24 -80 24 -80 0 z" />
+          <path pathLength="1" d="M332 428 c6 -42 130 -42 136 4 c-6 40 -130 40 -136 -4 z" />
+          <g id="scorch"></g>
+        </g>
+
+        <g class="ink" id="ornament" style="--s:.62;--e:.96">
+          <circle pathLength="1" cx="170" cy="220" r="44" />
+          <circle pathLength="1" cx="170" cy="220" r="31" />
+          <path pathLength="1" d="M170 164 L180 210 L226 220 L180 230 L170 276 L160 230 L114 220 L160 210 Z" />
+          <path pathLength="1" d="M198 192 L178 212 M142 248 L162 228 M198 248 L178 228 M142 192 L162 212" />
+          <path pathLength="1" d="M210 700 c15 -28 35 -28 50 0 c15 28 35 28 50 0 c12 -22 28 -24 40 -6" />
+          <path pathLength="1" d="M350 694 l16 -12 l-2 16 z M352 690 l-2 -1" />
+          <path pathLength="1" d="M1040 860 h160 M1040 854 v12 M1080 856 v8 M1120 856 v8 M1160 856 v8 M1200 854 v12" />
+          <path pathLength="1" d="M1004 150 Q1000 140 1012 140 H1330 Q1342 140 1338 150 V206 Q1342 216 1330 216 H1012 Q1000 216 1004 206 Z" />
+          <path pathLength="1" d="M1010 148 Q1006 144 1016 144 H1326 Q1336 144 1332 148 V208 Q1336 212 1326 212 H1016 Q1006 212 1010 208 Z" />
+        </g>
+
+        <g class="labels hand" id="labels">
+          <text class="label title" x="700" y="300" text-anchor="middle" style="--s:.42">Castle Ardenmoor</text>
+          <text class="label" x="270" y="640" text-anchor="middle" style="--s:.1">Stillwater</text>
+          <text class="label small" x="300" y="740" text-anchor="middle" style="--s:.7">here be forks</text>
+          <text class="label" x="1180" y="640" text-anchor="middle" transform="rotate(-8 1180 640)" style="--s:.5">Whispering Pines</text>
+          <text class="label" x="1205" y="296" text-anchor="middle" style="--s:.2">Hollow Hills</text>
+          <text class="label small" x="571" y="628" text-anchor="middle" style="--s:.58">Hall of Candles</text>
+          <text class="label small" x="829" y="628" text-anchor="middle" style="--s:.58">Library</text>
+          <text class="label small" x="700" y="364" text-anchor="middle" style="--s:.52">the Keep</text>
+          <text class="label small" x="950" y="350" text-anchor="middle" style="--s:.5">Astronomy Tower</text>
+          <text class="label small" x="700" y="668" text-anchor="middle" style="--s:.66">the Board Beneath</text>
+          <text class="label small" x="700" y="712" text-anchor="middle" style="--s:.5">the Gate</text>
+          <text class="label small" x="596" y="884" text-anchor="middle" style="--s:.3">the Long Bridge</text>
+          <text class="label" x="400" y="486" text-anchor="middle" style="--s:.72">Ember Field</text>
+          <text class="label small" x="352" y="394" text-anchor="middle" style="--s:.26">Trickster's Maze</text>
+          <text class="label small" x="440" y="270" text-anchor="middle" style="--s:.26">Apprentice's Garden</text>
+          <text class="label small" x="170" y="296" text-anchor="middle" style="--s:.8">N</text>
+          <text class="label small" x="1120" y="884" text-anchor="middle" style="--s:.84">eight squares</text>
+          <text class="label cartouche" x="1170" y="176" text-anchor="middle" style="--s:.86">A Map of Castle Ardenmoor</text>
+          <text class="label small" x="1170" y="200" text-anchor="middle" style="--s:.9">and the grounds thereabout, drawn in living ink</text>
+        </g>
+
+        <g id="trail" class="prints"></g>
+        <g id="prints" class="prints"></g>
+      </g>
+    </svg>
+    <div class="paper" aria-hidden="true"></div>
+    <canvas id="blots" class="blots" aria-hidden="true"></canvas>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="edges" aria-hidden="true"></div>
+
+    <header class="bar">
+      <a class="mark" href="#top">Chess</a>
+      <nav aria-label="Sections">
+        <a href="#armies">Armies</a>
+        <a href="#opponents">Opponents</a>
+        <a href="#captures">Captures</a>
+      </nav>
+      <a class="bar-cta" href="/">Play</a>
+    </header>
+
+    <main>
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy leaf" data-focus="hero">
+          <p class="hand kicker">found folded in a library book · drawn in living ink</p>
+          <h1 id="hero-title">
+            <span class="line">Under the castle, a board waits.</span>
+            <span class="line">Win, and <em>the door opens.</em></span>
+          </h1>
+          <p class="lede">Past the trapdoor is a chessboard as big as a hall. Its pieces stand taller than you, and they move when you tell them to. Play that game in 3D, in your browser.</p>
+          <div class="actions">
+            <a class="btn btn-seal" href="/">Take your square</a>
+            <a class="btn btn-ink" href="#armies">Follow the map</a>
+          </div>
+          <p class="fine hand">No install. No account. Scroll, and the ink shows you the way down.</p>
+        </div>
+      </section>
+
+      <section class="armies" id="armies" aria-labelledby="armies-title" data-focus="armies">
+        <div class="leaf fold">
+          <p class="hand kicker">plate i · the pieces that guard the door</p>
+          <h2 id="armies-title">Every piece is alive</h2>
+          <p class="lede">Click a piece, then a square, and it goes where you send it. The gold army is amber and ruby glass. The frost army is sapphire. The knights are winged horses. Each piece glows from inside.</p>
+          <div class="shores">
+            <figure class="army army-gold">
+              <figcaption class="hand">The gold army</figcaption>
+              <ul>
+                <li><img src="./src/assets/landing/wk.webp" alt="Gold king" loading="lazy" /><span class="hand">king</span></li>
+                <li><img src="./src/assets/landing/wq.webp" alt="Gold queen" loading="lazy" /><span class="hand">queen</span></li>
+                <li><img src="./src/assets/landing/wb.webp" alt="Gold bishop" loading="lazy" /><span class="hand">bishop</span></li>
+                <li><img src="./src/assets/landing/wn.webp" alt="Gold winged knight" loading="lazy" /><span class="hand">knight</span></li>
+                <li><img src="./src/assets/landing/wr.webp" alt="Gold rook" loading="lazy" /><span class="hand">rook</span></li>
+                <li><img src="./src/assets/landing/wp.webp" alt="Gold pawn" loading="lazy" /><span class="hand">pawn</span></li>
+              </ul>
+            </figure>
+            <figure class="army army-frost">
+              <figcaption class="hand">The frost army</figcaption>
+              <ul>
+                <li><img src="./src/assets/landing/bk.webp" alt="Frost king" loading="lazy" /><span class="hand">king</span></li>
+                <li><img src="./src/assets/landing/bq.webp" alt="Frost queen" loading="lazy" /><span class="hand">queen</span></li>
+                <li><img src="./src/assets/landing/bb.webp" alt="Frost bishop" loading="lazy" /><span class="hand">bishop</span></li>
+                <li><img src="./src/assets/landing/bn.webp" alt="Frost winged knight" loading="lazy" /><span class="hand">knight</span></li>
+                <li><img src="./src/assets/landing/br.webp" alt="Frost rook" loading="lazy" /><span class="hand">rook</span></li>
+                <li><img src="./src/assets/landing/bp.webp" alt="Frost pawn" loading="lazy" /><span class="hand">pawn</span></li>
+              </ul>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="opponents" id="opponents" aria-labelledby="opponents-title" data-focus="towers">
+        <div class="leaf fold">
+          <p class="hand kicker">plate ii · who plays the other side</p>
+          <h2 id="opponents-title">Choose who moves the frost army</h2>
+          <p class="lede">The board needs someone across from you. Three of the five are Stockfish 19 at different strengths. One is your friend on the next chair. One leaves both sides to the engine while you watch.</p>
+          <ol class="route">
+            <li>
+              <span class="seal hand">1</span>
+              <div>
+                <h3>Friend <span class="hand where">· the courtyard bench</span></h3>
+                <p>Pass the board. No engine. Two people, one screen.</p>
+              </div>
+            </li>
+            <li>
+              <span class="seal hand">2</span>
+              <div>
+                <h3>Apprentice <span class="hand where">· the garden</span></h3>
+                <p>Looks one move ahead. Search depth 1. Good for a first game.</p>
+              </div>
+            </li>
+            <li>
+              <span class="seal hand">3</span>
+              <div>
+                <h3>Trickster <span class="hand where">· the maze</span></h3>
+                <p>Thinks for 400 ms a move at skill 8. Fast, and fond of traps.</p>
+              </div>
+            </li>
+            <li>
+              <span class="seal hand">4</span>
+              <div>
+                <h3>Archmage <span class="hand where">· the keep</span></h3>
+                <p>Thinks for 1.5 s a move at skill 20. Full strength.</p>
+              </div>
+            </li>
+            <li>
+              <span class="seal hand">5</span>
+              <div>
+                <h3>Demo <span class="hand where">· the gallery</span></h3>
+                <p>Engine against engine. Sit back and watch the ink walk.</p>
+              </div>
+            </li>
+          </ol>
+          <div class="panels">
+            <p class="hand kicker">two ways to read the panel</p>
+            <div class="panel-row">
+              <a class="panel classic" href="/">
+                <strong>Classic</strong>
+                <span>A sunlit limestone great hall.</span>
+              </a>
+              <a class="panel astral" href="/">
+                <strong>Astral</strong>
+                <span>The astronomy tower at night.</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="captures" id="captures" aria-labelledby="captures-title" data-focus="field">
+        <div class="leaf fold">
+          <p class="hand kicker">plate iii · ember field</p>
+          <h2 id="captures-title">On this board, a taken piece is smashed</h2>
+          <p class="lede">Enchanted chess is not polite. The taking piece lifts, leaps, and crashes down. The taken piece bursts into embers, and a shockwave runs across the board.</p>
+          <ol class="beats">
+            <li>
+              <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 40 V12 M14 22 L24 12 L34 22" /></svg>
+              <strong>Lift</strong>
+              <span>The piece rises off its square.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 38 C14 8 34 8 40 38" /><path d="M36 30 L40 38 L32 38" /></svg>
+              <strong>Leap</strong>
+              <span>It arcs over the board.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 30 L28 18 L31 28 L42 24 L33 32 L42 40 L30 36 L24 46 L18 36 L6 40 L15 32 L6 24 L17 28 L20 18 Z" /></svg>
+              <strong>Smash</strong>
+              <span>It lands on the taken piece.</span>
+            </li>
+            <li>
+              <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26" r="9" /><circle cx="10" cy="14" r="2" /><circle cx="38" cy="12" r="2.5" /><circle cx="40" cy="34" r="1.8" /><circle cx="8" cy="36" r="1.6" /><circle cx="24" cy="6" r="1.8" /></svg>
+              <strong>Ember burst</strong>
+              <span>The taken piece burns away.</span>
+            </li>
+          </ol>
+          <div class="wave" aria-hidden="true">
+            <span></span><span></span><span></span>
+            <p class="hand">shockwave · board ripple</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="close" id="close" aria-labelledby="close-title" data-focus="board">
+        <div class="leaf fold">
+          <p class="hand kicker">plate iv · the board beneath</p>
+          <h2 id="close-title">The trapdoor is open. Take your square.</h2>
+          <p class="lede">Sometimes you must give up a piece to reach the king. The game is built with three.js and Stockfish 19. Nothing to install. Nothing to sign up for.</p>
+          <a class="seal-cta" href="/">
+            <span class="wax" aria-hidden="true">♞</span>
+            <span class="wax-text">Open the board</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="colophon hand">
+      <span>Chess · 3D in the browser</span>
+      <span>three.js · Stockfish 19 · no account</span>
+    </footer>
+
+    <script type="module" src="./src/landing/map.ts"></script>
+  </body>
+</html>

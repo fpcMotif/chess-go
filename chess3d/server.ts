@@ -1,8 +1,9 @@
 import index from "./index.html"
+import landing from "./landing.html"
 
 const server = Bun.serve({
   port: Number(process.env["PORT"] ?? 3000),
-  routes: { "/": index },
+  routes: { "/": index, "/landing": landing },
   development: { hmr: true, console: true }
 })
 
