@@ -1,0 +1,31 @@
+{
+  "name": "web",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "build": "bun build index.html landing.html --outdir dist --minify --sourcemap=none",
+    "deploy": "bun run build && wrangler deploy",
+    "check": "bun check && oxlint src && ritmo-devtools lint src/simulation.ts && bun test"
+  },
+  "devDependencies": {
+    "@typeonce/oxlint-plugin-ritmo": "^0.10.0",
+    "@typeonce/ritmo-devtools": "^0.10.0",
+    "@types/bun": "latest",
+    "@types/three": "^0.186.0",
+    "oxlint": "^1.89.0",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.151.3"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@typeonce/ritmo": "^0.10.0",
+    "chess.js": "^1.4.0",
+    "gsap": "^3.15.0",
+    "stockfish": "19.0.0",
+    "three": "^0.186.1"
+  }
+}

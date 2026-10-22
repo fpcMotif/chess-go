@@ -71,6 +71,9 @@ class BoardWidget extends StatefulWidget {
     this.slideToken = 0,
     this.slideDuration = const Duration(milliseconds: 180),
     this.theme = const BoardTheme(),
+    this.checkered = true,
+    this.starPoints = const [],
+    this.xiangqiMarks = false,
     this.onTap,
     this.canDrag,
     this.onDrop,
@@ -105,6 +108,17 @@ class BoardWidget extends StatefulWidget {
   final Duration slideDuration;
 
   final BoardTheme theme;
+
+  /// Squares mode only: alternate light and dark cells. Off draws plain
+  /// cells with grid lines (shogi).
+  final bool checkered;
+
+  /// Intersections mode only: points to mark with a dot (Go hoshi).
+  final List<BoardCoord> starPoints;
+
+  /// Intersections mode only: draw the xiangqi river and palaces. Needs a
+  /// 9x10 board.
+  final bool xiangqiMarks;
 
   final ValueChanged<BoardCoord>? onTap;
 
@@ -193,6 +207,11 @@ class _BoardWidgetState extends State<BoardWidget> {
                       rows: _rows,
                       mode: widget.mode,
                       theme: widget.theme,
+                      checkered: widget.checkered,
+                      stars: [
+                        for (final c in widget.starPoints) _topLeft(c, cell),
+                      ],
+                      xiangqi: widget.xiangqiMarks,
                       marks: [
                         for (final c in widget.lastMove)
                           (_topLeft(c, cell), widget.theme.lastMove),
@@ -266,6 +285,9 @@ class _BoardPainter extends CustomPainter {
     required this.rows,
     required this.mode,
     required this.theme,
+    required this.checkered,
+    required this.stars,
+    required this.xiangqi,
     required this.marks,
     required this.check,
   });
@@ -274,6 +296,9 @@ class _BoardPainter extends CustomPainter {
   final int rows;
   final BoardMode mode;
   final BoardTheme theme;
+  final bool checkered;
+  final List<Offset> stars;
+  final bool xiangqi;
   final List<(Offset, Color)> marks;
   final Offset? check;
 
@@ -281,7 +306,27 @@ class _BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cell = size.width / cols;
     final paint = Paint();
-    if (mode == BoardMode.squares) {
+    if (mode == BoardMode.squares && !checkered) {
+      paint.color = theme.light;
+      canvas.drawRect(Offset.zero & size, paint);
+      final line = Paint()
+        ..color = theme.line
+        ..strokeWidth = 1;
+      for (var c = 0; c <= cols; c++) {
+        canvas.drawLine(
+          Offset(c * cell, 0),
+          Offset(c * cell, size.height),
+          line,
+        );
+      }
+      for (var r = 0; r <= rows; r++) {
+        canvas.drawLine(
+          Offset(0, r * cell),
+          Offset(size.width, r * cell),
+          line,
+        );
+      }
+    } else if (mode == BoardMode.squares) {
       for (var r = 0; r < rows; r++) {
         for (var c = 0; c < cols; c++) {
           // Bottom-left cell is dark, as on a chess board.
@@ -298,12 +343,26 @@ class _BoardPainter extends CustomPainter {
         ..color = theme.line
         ..strokeWidth = 1;
       final h = cell / 2;
+      Offset pt(num c, num r) => Offset(h + c * cell, h + r * cell);
       for (var c = 0; c < cols; c++) {
-        canvas.drawLine(
-          Offset(h + c * cell, h),
-          Offset(h + c * cell, size.height - h),
-          line,
-        );
+        if (xiangqi && c > 0 && c < cols - 1) {
+          // Inner files stop at the river (between rows 4 and 5).
+          canvas.drawLine(pt(c, 0), pt(c, 4), line);
+          canvas.drawLine(pt(c, 5), pt(c, rows - 1), line);
+        } else {
+          canvas.drawLine(pt(c, 0), pt(c, rows - 1), line);
+        }
+      }
+      if (xiangqi) {
+        // Palace diagonals; the board is symmetric so flipping is moot.
+        for (final top in [0, rows - 3]) {
+          canvas.drawLine(pt(3, top), pt(5, top + 2), line);
+          canvas.drawLine(pt(5, top), pt(3, top + 2), line);
+        }
+      }
+      final dot = Paint()..color = theme.line;
+      for (final o in stars) {
+        canvas.drawCircle(o + Offset(h, h), cell * 0.1, dot);
       }
       for (var r = 0; r < rows; r++) {
         canvas.drawLine(
@@ -340,8 +399,19 @@ class _BoardPainter extends CustomPainter {
       old.rows != rows ||
       old.mode != mode ||
       old.theme != theme ||
+      old.checkered != checkered ||
+      old.xiangqi != xiangqi ||
       old.check != check ||
+      !_sameOffsets(old.stars, stars) ||
       !_sameMarks(old.marks, marks);
+
+  static bool _sameOffsets(List<Offset> a, List<Offset> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   static bool _sameMarks(List<(Offset, Color)> a, List<(Offset, Color)> b) {
     if (a.length != b.length) return false;
