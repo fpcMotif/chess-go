@@ -32,6 +32,12 @@ const describe = (view: BoardView): string => {
 }
 
 const SEAT_DISTANCE = 10.5
+const DEMO_LEVEL: Level = "tricky"
+const DEMO_MOVE_PAUSE_MS = 600
+const DEMO_RESTART_MS = 5000
+const DEMO_ORBIT_SPEED = 0.8
+
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 const isLevel = (value: string): value is Level => value in LEVELS
 
@@ -57,6 +63,7 @@ export const start = async (): Promise<void> => {
 
   status.textContent = "Summoning the pieces…"
   const scene = makeScene(canvas)
+  scene.controls.autoRotateSpeed = DEMO_ORBIT_SPEED
   await loadCharacters()
   const pieces = makePieceLayer(scene)
   let runtime = makeSimulation()
@@ -68,8 +75,9 @@ export const start = async (): Promise<void> => {
   let engine: Engine | null = null
   let thinking = false
   let round = 0
+  let demo = false
 
-  const computerToMove = (): boolean => opponent !== null && view.turn !== human && view.outcome.kind === "playing"
+  const computerToMove = (): boolean => view.outcome.kind === "playing" && (demo || (opponent !== null && view.turn !== human))
 
   const paint = (): void => {
     const legal = view.legal.filter((move) => move.from === selected)
@@ -81,7 +89,7 @@ export const start = async (): Promise<void> => {
       last: view.lastMove === null ? [] : [view.lastMove.from, view.lastMove.to],
       checked: view.checked
     })
-    status.textContent = opponent !== null && thinking ? `Stockfish (${LEVELS[opponent].label}) is thinking…` : describe(view)
+    status.textContent = thinking && demo ? `Demo: Stockfish plays ${view.turn === "w" ? "White" : "Black"}…` : thinking && opponent !== null ? `Stockfish (${LEVELS[opponent].label}) is thinking…` : describe(view)
     moves.replaceChildren(
       ...Array.from({ length: Math.ceil(view.history.length / 2) }, (_, index) => {
         const item = document.createElement("li")
@@ -98,19 +106,28 @@ export const start = async (): Promise<void> => {
     busy = true
     await pieces.sync(view)
     busy = false
-    if (view.outcome.kind !== "playing") gsap.fromTo(status, { scale: 1 }, { scale: 1.15, yoyo: true, repeat: 1, duration: 0.25 })
+    if (view.outcome.kind !== "playing") {
+      gsap.fromTo(status, { scale: 1 }, { scale: 1.15, yoyo: true, repeat: 1, duration: 0.25 })
+      if (demo) {
+        const finished = round
+        setTimeout(() => {
+          if (demo && finished === round) newGame()
+        }, DEMO_RESTART_MS)
+      }
+    }
     void playComputer()
   }
 
   const playComputer = async (): Promise<void> => {
-    if (opponent === null || thinking || !computerToMove()) return
-    const level = opponent
+    const level = demo ? DEMO_LEVEL : opponent
+    if (level === null || thinking || !computerToMove()) return
     const started = round
     engine ??= makeEngine(stockfishTransport())
     thinking = true
     paint()
     try {
       const move = await engine.bestMove(view.uci, level)
+      if (demo) await pause(DEMO_MOVE_PAUSE_MS)
       if (started !== round) return
       thinking = false
       send(move.from, move.to, move.promotion)
@@ -196,12 +213,17 @@ export const start = async (): Promise<void> => {
     const value = event.target instanceof HTMLButtonElement ? event.target.dataset["value"] : undefined
     if (value === undefined) return
     opponent = isLevel(value) ? value : null
+    const leavingDemo = demo && value !== "demo"
+    demo = value === "demo"
+    scene.controls.autoRotate = demo
     pressOnly(opponentChoice, value)
     sideField.hidden = opponent === null
-    if (opponent === null && human === "b") {
+    if (!demo && opponent === null && human === "b") {
       human = "w"
       pressOnly(sideChoice, "w")
       seat("w")
+    } else if (leavingDemo) {
+      seat(human)
     }
     newGame()
   })
