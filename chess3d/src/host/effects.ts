@@ -31,6 +31,8 @@ const flat = (geometry: THREE.BufferGeometry, color: number, opacity: number, bl
 }
 
 export const makeEffects = (scene: THREE.Scene): Effects => {
+  const flashLight = new THREE.PointLight(0xffffff, 0, 4, 2)
+  scene.add(flashLight)
   const dispose = (mesh: THREE.Mesh<THREE.BufferGeometry, THREE.Material>): void => {
     scene.remove(mesh)
     mesh.material.dispose()
@@ -68,16 +70,12 @@ export const makeEffects = (scene: THREE.Scene): Effects => {
       const disk = flat(diskGeometry, color, 0, THREE.AdditiveBlending)
       disk.position.copy(at).setY(0.08)
       disk.scale.setScalar(0.3)
-      const light = new THREE.PointLight(color, 0, 4, 2)
-      light.position.copy(at).setY(0.7)
-      scene.add(disk, light)
+      flashLight.color.setHex(color)
+      flashLight.position.copy(at).setY(0.7)
+      const light = flashLight
+      scene.add(disk)
       return gsap
-        .timeline({
-          onComplete: () => {
-            dispose(disk)
-            scene.remove(light)
-          }
-        })
+        .timeline({ onComplete: () => dispose(disk) })
         .to(disk.material, { opacity: 0.75, duration: 0.03, ease: "power2.out" }, 0)
         .to(disk.material, { opacity: 0, duration: 0.17, ease: "power2.out" }, 0.03)
         .to(disk.scale, { x: 1.3, y: 1.3, z: 1.3, duration: 0.2, ease: "power2.out" }, 0)

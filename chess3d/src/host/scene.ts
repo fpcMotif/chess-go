@@ -4,6 +4,7 @@ import type { Color, PieceSymbol, Square } from "../sim/rules.ts"
 import { buildCharacter, disposeCharacter, faceCamera } from "./characters.ts"
 import { makeHall } from "./hall.ts"
 import { runeTexture } from "./rune.ts"
+import { makeShockwave } from "./shockwave.ts"
 import { TILE_GRAIN, WALNUT, woodTexture } from "./wood.ts"
 
 export const SQUARE = 1
@@ -40,6 +41,7 @@ export interface Scene {
   highlight(options: { readonly selected: Square | null; readonly legal: ReadonlyArray<Square>; readonly captures: ReadonlyArray<Square>; readonly last: ReadonlyArray<Square>; readonly checked: Square | null }): void
   pick(clientX: number, clientY: number): Square | null
   render(): void
+  shockwave(at: THREE.Vector3): gsap.core.Timeline
   resize(): void
 }
 
@@ -128,6 +130,7 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   const checkLight = new THREE.PointLight(PALETTE.capture, 0, 3, 2)
   scene.add(checkLight)
   const clock = new THREE.Clock()
+  const shockwave = makeShockwave(renderer, scene, camera)
 
   const api: Scene = {
     renderer,
@@ -201,12 +204,16 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
       runeLight.intensity = rune.visible ? 3.5 + Math.sin(time * 5) * 0.8 : 0
       for (const marker of markers.children) marker.scale.setScalar(1 + Math.sin(time * 4) * 0.06)
       faceCamera(scene, camera)
-      renderer.render(scene, camera)
+      if (!shockwave.render()) renderer.render(scene, camera)
+    },
+    shockwave(at) {
+      return shockwave.burst(at)
     },
     resize() {
       const width = canvas.clientWidth
       const height = canvas.clientHeight
       renderer.setSize(width, height, false)
+      shockwave.resize(width, height)
       camera.aspect = width / height
       camera.updateProjectionMatrix()
     }

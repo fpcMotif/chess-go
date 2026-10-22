@@ -83,13 +83,15 @@ export const start = async (): Promise<void> => {
   const paint = (): void => {
     const legal = view.legal.filter((move) => move.from === selected)
     const occupied = new Set(view.pieces.map((piece) => piece.square))
+    const captures = legal.filter((move) => occupied.has(move.to) || (view.pieces.find((piece) => piece.square === move.from)?.kind === "p" && move.from.charAt(0) !== move.to.charAt(0))).map((move) => move.to)
     scene.highlight({
       selected,
       legal: legal.map((move) => move.to),
-      captures: legal.filter((move) => occupied.has(move.to) || (view.pieces.find((piece) => piece.square === move.from)?.kind === "p" && move.from.charAt(0) !== move.to.charAt(0))).map((move) => move.to),
+      captures,
       last: view.lastMove === null ? [] : [view.lastMove.from, view.lastMove.to],
       checked: view.checked
     })
+    pieces.threaten(captures)
     status.textContent = thinking && demo ? `Demo: Stockfish plays ${view.turn === "w" ? "White" : "Black"}…` : thinking && opponent !== null ? `Stockfish (${LEVELS[opponent].label}) is thinking…` : describe(view)
     moves.replaceChildren(
       ...Array.from({ length: Math.ceil(view.history.length / 2) }, (_, index) => {

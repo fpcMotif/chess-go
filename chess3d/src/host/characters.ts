@@ -160,7 +160,63 @@ export const faceCamera = (root: THREE.Object3D, camera: THREE.Camera): void => 
   })
 }
 
-export const disposeCharacter = (figure: THREE.Object3D): void => {
+const BURN_HEADER = `
+uniform float uBurn;
+uniform vec3 uEmber;
+float burnHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float burnNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(burnHash(i), burnHash(i + vec2(1.0, 0.0)), u.x), mix(burnHash(i + vec2(0.0, 1.0)), burnHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float burnField(vec2 p) {
+  float total = 0.0;
+  float amp = 0.5;
+  for (int octave = 0; octave < 5; octave++) {
+    total += amp * burnNoise(p);
+    p = p * 2.03 + vec2(1.7, 9.2);
+    amp *= 0.5;
+  }
+  return total;
+}`
+
+const BURN_EDGE = 0.07
+
+const BURN_MASK = `
+#include <alphatest_fragment>
+float burnGap = burnField(vMapUv * 6.0) * 0.7 + vMapUv.y * 0.3 - (uBurn * (1.0 + ${BURN_EDGE * 2}) - ${BURN_EDGE});
+if (burnGap < 0.0) discard;
+float burnEmber = 1.0 - smoothstep(0.0, ${BURN_EDGE}, burnGap);
+diffuseColor.rgb *= mix(1.0, 0.25, 1.0 - smoothstep(0.0, ${BURN_EDGE * 3}, burnGap));`
+
+const BURN_GLOW = `
+#include <emissivemap_fragment>
+totalEmissiveRadiance += uEmber * burnEmber * 5.0;`
+
+export const igniteCharacter = (figure: THREE.Object3D, ember: number): { value: number } => {
+  const burn = { value: 0 }
+  const color = { value: new THREE.Color(ember) }
+  figure.traverse((object) => {
+    const card = object.userData["card"] as Card | undefined
+    if (card === undefined) return
+    for (const material of [card.front, card.back]) {
+      material.onBeforeCompile = (shader) => {
+        shader.uniforms["uBurn"] = burn
+        shader.uniforms["uEmber"] = color
+        shader.fragmentShader = shader.fragmentShader
+          .replace("#include <common>", `#include <common>${BURN_HEADER}`)
+          .replace("#include <alphatest_fragment>", BURN_MASK)
+          .replace("#include <emissivemap_fragment>", BURN_GLOW)
+      }
+      material.customProgramCacheKey = () => "burn"
+      material.needsUpdate = true
+    }
+  })
+  return burn
+}
+
+export const disposeCharacter =(figure: THREE.Object3D): void => {
   figure.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return
     object.geometry.dispose()
