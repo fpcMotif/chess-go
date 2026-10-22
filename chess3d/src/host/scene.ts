@@ -1,0 +1,275 @@
+import * as THREE from "three"
+import { OrbitControls } from "three/addons/controls/OrbitControls.js"
+import type { Color, PieceSymbol, Square } from "../sim/rules.ts"
+import { buildCharacter, disposeCharacter, faceCamera, type PieceSet } from "./characters.ts"
+import { chartTexture, makeObservatory } from "./astral.ts"
+import { makeHall } from "./hall.ts"
+import { runeTexture } from "./rune.ts"
+import { makeShockwave } from "./shockwave.ts"
+import { limestoneTexture } from "./stone.ts"
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js"
+import { TILE_GRAIN, WALNUT, woodTexture } from "./wood.ts"
+
+export const SQUARE = 1
+const FILES = "abcdefgh"
+
+export const squarePosition = (square: Square): THREE.Vector3 => {
+  const file = FILES.indexOf(square.charAt(0))
+  const rank = Number(square.charAt(1)) - 1
+  return new THREE.Vector3((file - 3.5) * SQUARE, 0, (3.5 - rank) * SQUARE)
+}
+
+export const squareOf = (file: number, rank: number): Square => `${FILES.charAt(file)}${rank + 1}` as Square
+
+const PALETTE = {
+  light: 0xe6d3ae,
+  dark: 0x5c3a1e,
+  trim: 0xb8862b,
+  select: 0xf59e0b,
+  legal: 0x10b981,
+  capture: 0xef4444,
+  last: 0xffb95f
+} as const
+
+const TILES: Record<PieceSet, { readonly light: number; readonly dark: number }> = {
+  classic: { light: PALETTE.light, dark: PALETTE.dark },
+  astral: { light: 0xb4bfdc, dark: 0x3a4677 }
+}
+
+const CLASSIC_BACKGROUND = 0xd9ccb4
+const ASTRAL_BACKGROUND = 0x070818
+
+export interface Scene {
+  readonly renderer: THREE.WebGLRenderer
+  readonly scene: THREE.Scene
+  readonly camera: THREE.PerspectiveCamera
+  readonly controls: OrbitControls
+  readonly board: THREE.Group
+  readonly squares: ReadonlyMap<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>
+  readonly markers: THREE.Group
+  readonly pieceSet: PieceSet
+  setStyle(set: PieceSet): void
+  makePiece(color: Color, kind: PieceSymbol): THREE.Group
+  setPieceKind(figure: THREE.Group, color: Color, kind: PieceSymbol): void
+  highlight(options: { readonly selected: Square | null; readonly legal: ReadonlyArray<Square>; readonly captures: ReadonlyArray<Square>; readonly last: ReadonlyArray<Square>; readonly checked: Square | null }): void
+  pick(clientX: number, clientY: number): Square | null
+  render(): void
+  shockwave(at: THREE.Vector3): gsap.core.Timeline
+  resize(): void
+}
+
+export const makeScene = (canvas: HTMLCanvasElement): Scene => {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color(CLASSIC_BACKGROUND)
+  const environment = new THREE.PMREMGenerator(renderer)
+  scene.environment = environment.fromScene(new RoomEnvironment(), 0.04).texture
+  scene.environmentIntensity = 0.35
+  environment.dispose()
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
+  camera.position.set(0, 9.5, 10.5)
+  const controls = new OrbitControls(camera, canvas)
+  controls.enableDamping = true
+  controls.maxPolarAngle = Math.PI / 2.2
+  controls.minDistance = 5
+  controls.maxDistance = 20
+  controls.target.set(0, 0, 0)
+
+  const daylight = new THREE.HemisphereLight(0xe8eef8, 0xb39a78, 1.1)
+  scene.add(daylight)
+  const key = new THREE.SpotLight(0xfff2dc, 70, 40, Math.PI / 5, 0.7, 1.6)
+  key.position.set(4, 11, 5)
+  key.castShadow = true
+  key.shadow.mapSize.set(2048, 2048)
+  key.shadow.bias = -0.0005
+  scene.add(key, key.target)
+  const hall = makeHall(scene)
+  const hallFog = scene.fog
+  const astralFog = new THREE.FogExp2(ASTRAL_BACKGROUND, 0.012)
+  const observatory = makeObservatory(scene)
+  observatory.group.visible = false
+  let style: PieceSet = "classic"
+
+  const board = new THREE.Group()
+  const walnut = woodTexture(WALNUT)
+  walnut.repeat.set(2, 2)
+  const walnutMaterial = new THREE.MeshPhysicalMaterial({ map: walnut, bumpMap: walnut, bumpScale: 0.004, roughness: 0.42, metalness: 0, clearcoat: 0.55, clearcoatRoughness: 0.35 })
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(9, 0.5, 9), walnutMaterial)
+  frame.position.y = -0.3
+  frame.receiveShadow = true
+  frame.castShadow = true
+  board.add(frame)
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(8.3, 0.02, 8.3), new THREE.MeshStandardMaterial({ color: PALETTE.trim, roughness: 0.35, metalness: 0.7 }))
+  trim.position.y = -0.045
+  board.add(trim)
+  const plinthStone = limestoneTexture()
+  plinthStone.repeat.set(1.2, 0.65)
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 5), new THREE.MeshStandardMaterial({ map: plinthStone, bumpMap: plinthStone, bumpScale: 0.03, color: 0xf4ece0, roughness: 0.85 }))
+  plinth.castShadow = true
+  plinth.receiveShadow = true
+  plinth.position.y = -1.85
+  board.add(plinth)
+  const slate = new THREE.MeshPhysicalMaterial({ color: 0x1b2347, roughness: 0.3, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 })
+  const tileMaterials = new Map<Square, Record<PieceSet, THREE.MeshPhysicalMaterial>>()
+  const squares = new Map<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>()
+  const squareGeometry = new THREE.BoxGeometry(SQUARE, 0.1, SQUARE)
+  const grain = woodTexture(TILE_GRAIN)
+  for (let file = 0; file < 8; file++) {
+    for (let rank = 0; rank < 8; rank++) {
+      const square = squareOf(file, rank)
+      const tileGrain = grain.clone()
+      tileGrain.repeat.set(0.5, 0.5)
+      tileGrain.offset.set((file * 0.37) % 0.5, (rank * 0.23) % 0.5)
+      tileGrain.rotation = (file + rank) % 2 === 0 ? Math.PI / 2 : 0
+      const chart = chartTexture().clone()
+      chart.rotation = ((file * 3 + rank * 5) % 4) * (Math.PI / 2)
+      chart.center.set(0.5, 0.5)
+      const materials: Record<PieceSet, THREE.MeshPhysicalMaterial> = {
+        classic: new THREE.MeshPhysicalMaterial({ map: tileGrain, color: (file + rank) % 2 === 0 ? PALETTE.dark : PALETTE.light, roughness: 0.38, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25 }),
+        astral: new THREE.MeshPhysicalMaterial({ map: chart, color: (file + rank) % 2 === 0 ? TILES.astral.dark : TILES.astral.light, roughness: 0.15, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, sheen: 0.6, sheenColor: 0x8ea2ff })
+      }
+      tileMaterials.set(square, materials)
+      const tile = new THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>(squareGeometry, materials.classic)
+      tile.position.copy(squarePosition(square))
+      tile.receiveShadow = true
+      tile.userData = { square }
+      squares.set(square, tile)
+      board.add(tile)
+    }
+  }
+  scene.add(board)
+  const markers = new THREE.Group()
+  scene.add(markers)
+
+  const raycaster = new THREE.Raycaster()
+  const pointer = new THREE.Vector2()
+  const ring = new THREE.RingGeometry(0.36, 0.44, 48)
+  const dot = new THREE.CircleGeometry(0.12, 24)
+  const dotHalo = new THREE.CircleGeometry(0.26, 24)
+  const rune = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), new THREE.MeshBasicMaterial({ map: runeTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))
+  rune.rotation.x = -Math.PI / 2
+  rune.visible = false
+  scene.add(rune)
+  const runeLight = new THREE.PointLight(PALETTE.select, 0, 3, 2)
+  runeLight.position.y = 0.4
+  rune.add(runeLight)
+  const checkLight = new THREE.PointLight(PALETTE.capture, 0, 3, 2)
+  scene.add(checkLight)
+  const clock = new THREE.Clock()
+  const shockwave = makeShockwave(renderer, scene, camera)
+
+  const api: Scene = {
+    renderer,
+    scene,
+    camera,
+    controls,
+    board,
+    squares,
+    markers,
+    get pieceSet() {
+      return style
+    },
+    setStyle(set) {
+      const astral = set === "astral"
+      style = set
+      hall.group.visible = !astral
+      observatory.group.visible = astral
+      daylight.visible = !astral
+      key.color.setHex(astral ? 0xc8d6ff : 0xfff2dc)
+      key.intensity = astral ? 45 : 70
+      plinth.visible = !astral
+      frame.material = astral ? slate : walnutMaterial
+      scene.background = new THREE.Color(astral ? ASTRAL_BACKGROUND : CLASSIC_BACKGROUND)
+      scene.fog = astral ? astralFog : hallFog
+      for (const [square, tile] of squares) {
+        const materials = tileMaterials.get(square)
+        if (materials !== undefined) tile.material = materials[set]
+      }
+    },
+    makePiece(color, kind) {
+      const figure = new THREE.Group()
+      figure.add(buildCharacter(api.pieceSet, color, kind))
+      figure.position.y = 0.05
+      return figure
+    },
+    setPieceKind(figure, color, kind) {
+      disposeCharacter(figure)
+      figure.clear()
+      figure.add(buildCharacter(api.pieceSet, color, kind))
+    },
+    highlight({ selected, legal, captures, last, checked }) {
+      for (const [square, tile] of squares) {
+        const file = FILES.indexOf(square.charAt(0))
+        const rank = Number(square.charAt(1)) - 1
+        tile.material.color.setHex((file + rank) % 2 === 0 ? TILES[api.pieceSet].dark : TILES[api.pieceSet].light)
+        tile.material.emissive.setHex(0)
+        if (last.includes(square)) tile.material.emissive.setHex(PALETTE.last).multiplyScalar(0.18)
+        if (square === checked) tile.material.emissive.setHex(PALETTE.capture).multiplyScalar(0.55)
+      }
+      rune.visible = selected !== null
+      runeLight.intensity = selected === null ? 0 : 4
+      if (selected !== null) rune.position.copy(squarePosition(selected)).setY(0.062)
+      markers.clear()
+      checkLight.intensity = 0
+      if (checked !== null) {
+        const warning = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 48), new THREE.MeshBasicMaterial({ color: PALETTE.capture, transparent: true, opacity: 0.95, depthWrite: false }))
+        warning.rotation.x = -Math.PI / 2
+        warning.position.copy(squarePosition(checked)).setY(0.065)
+        const glow = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.62, 48), new THREE.MeshBasicMaterial({ color: PALETTE.capture, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }))
+        glow.rotation.x = -Math.PI / 2
+        glow.position.copy(warning.position)
+        markers.add(glow, warning)
+        checkLight.position.copy(squarePosition(checked)).setY(0.6)
+        checkLight.intensity = 6
+      }
+      for (const square of legal) {
+        const capture = captures.includes(square)
+        const marker = new THREE.Mesh(capture ? ring : dot, new THREE.MeshBasicMaterial({ color: capture ? PALETTE.capture : PALETTE.legal, transparent: true, opacity: 0.95, depthWrite: false }))
+        marker.rotation.x = -Math.PI / 2
+        marker.position.copy(squarePosition(square)).setY(0.06)
+        const halo = new THREE.Mesh(capture ? new THREE.RingGeometry(0.3, 0.5, 48) : dotHalo, new THREE.MeshBasicMaterial({ color: capture ? PALETTE.capture : PALETTE.legal, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }))
+        halo.rotation.x = -Math.PI / 2
+        halo.position.copy(marker.position)
+        markers.add(halo, marker)
+      }
+    },
+    pick(clientX, clientY) {
+      const bounds = canvas.getBoundingClientRect()
+      pointer.set(((clientX - bounds.left) / bounds.width) * 2 - 1, -((clientY - bounds.top) / bounds.height) * 2 + 1)
+      raycaster.setFromCamera(pointer, camera)
+      const hit = raycaster.intersectObjects([...squares.values()], false)[0]
+      if (hit === undefined) return null
+      const square: unknown = hit.object.userData["square"]
+      return typeof square === "string" ? (square as Square) : null
+    },
+    render() {
+      const time = clock.getElapsedTime()
+      controls.update()
+      if (api.pieceSet === "astral") observatory.update(time)
+      else hall.update(time)
+      rune.rotation.z = time * 0.4
+      runeLight.intensity = rune.visible ? 3.5 + Math.sin(time * 5) * 0.8 : 0
+      for (const marker of markers.children) marker.scale.setScalar(1 + Math.sin(time * 4) * 0.06)
+      faceCamera(scene, camera)
+      shockwave.render()
+    },
+    shockwave(at) {
+      return shockwave.burst(at)
+    },
+    resize() {
+      const width = canvas.clientWidth
+      const height = canvas.clientHeight
+      renderer.setSize(width, height, false)
+      shockwave.resize(width, height)
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+    }
+  }
+  api.resize()
+  return api
+}

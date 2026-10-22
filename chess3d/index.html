@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chess</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=EB+Garamond:wght@400;500&family=JetBrains+Mono:wght@500&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Cormorant+Garamond:ital,wght@0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main>
+      <canvas id="board"></canvas>
+      <aside>
+        <span class="grabber" aria-hidden="true"></span>
+        <h1>Chess</h1>
+        <p class="hint">Click a piece, then a square. Captures end in a brawl.</p>
+        <p class="chapter">The Observatory</p>
+        <fieldset class="choice">
+          <legend>Opponent</legend>
+          <div id="opponent" class="opponents">
+            <button type="button" class="opponent" data-value="friend" aria-pressed="true">
+              <span class="seat"><img src="./src/assets/ui/seat.svg" width="32" height="32" alt="" /><img src="./src/assets/ui/seat-chosen.svg" width="32" height="32" alt="" /></span>
+              <span class="who"><span class="name"><span class="plain">Friend</span><span class="full">Friend</span><span class="short">Friend</span></span><span class="detail">pass the board</span></span>
+              <span class="pips" aria-hidden="true">○○○○○</span>
+            </button>
+            <button type="button" class="opponent" data-value="easy" aria-pressed="false">
+              <span class="seat"><img src="./src/assets/ui/seat.svg" width="32" height="32" alt="" /><img src="./src/assets/ui/seat-chosen.svg" width="32" height="32" alt="" /></span>
+              <span class="who"><span class="name"><span class="plain">Easy</span><span class="full">Apprentice</span><span class="short">Appr.</span></span><span class="detail">go depth 1</span></span>
+              <span class="pips" aria-hidden="true">●○○○○</span>
+            </button>
+            <button type="button" class="opponent" data-value="tricky" aria-pressed="false">
+              <span class="seat"><img src="./src/assets/ui/seat.svg" width="32" height="32" alt="" /><img src="./src/assets/ui/seat-chosen.svg" width="32" height="32" alt="" /></span>
+              <span class="who"><span class="name"><span class="plain">Tricky</span><span class="full">Trickster</span><span class="short">Trick.</span></span><span class="detail">400 ms · skill 8</span></span>
+              <span class="pips" aria-hidden="true">●●●○○</span>
+            </button>
+            <button type="button" class="opponent" data-value="hard" aria-pressed="false">
+              <span class="seat"><img src="./src/assets/ui/seat.svg" width="32" height="32" alt="" /><img src="./src/assets/ui/seat-chosen.svg" width="32" height="32" alt="" /></span>
+              <span class="who"><span class="name"><span class="plain">Hard</span><span class="full">Archmage</span><span class="short">Arch.</span></span><span class="detail">1.5 s · skill 20</span></span>
+              <span class="pips" aria-hidden="true">●●●●●</span>
+            </button>
+            <button type="button" class="opponent" data-value="demo" aria-pressed="false">
+              <span class="seat"><img src="./src/assets/ui/seat.svg" width="32" height="32" alt="" /><img src="./src/assets/ui/seat-chosen.svg" width="32" height="32" alt="" /></span>
+              <span class="who"><span class="name"><span class="plain">Demo</span><span class="full">Demo</span><span class="short">Demo</span></span><span class="detail">engine vs engine</span></span>
+              <span class="pips" aria-hidden="true">∞</span>
+            </button>
+          </div>
+        </fieldset>
+        <fieldset class="choice" id="side-choice" hidden>
+          <legend>You play</legend>
+          <div id="side" class="segmented">
+            <button type="button" data-value="w" aria-pressed="true">White</button>
+            <button type="button" data-value="b" aria-pressed="false">Black</button>
+          </div>
+        </fieldset>
+        <div id="status">White to move.</div>
+        <div id="promotion" hidden></div>
+        <ol id="moves"></ol>
+        <fieldset class="choice">
+          <legend>Panel style</legend>
+          <div id="panel-style" class="segmented">
+            <button type="button" data-value="classic" aria-pressed="true">Classic</button>
+            <button type="button" data-value="astral" aria-pressed="false">Astral</button>
+          </div>
+        </fieldset>
+        <button id="reset">New game</button>
+      </aside>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
