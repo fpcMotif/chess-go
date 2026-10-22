@@ -5,6 +5,8 @@ import { buildCharacter, disposeCharacter, faceCamera } from "./characters.ts"
 import { makeHall } from "./hall.ts"
 import { runeTexture } from "./rune.ts"
 import { makeShockwave } from "./shockwave.ts"
+import { limestoneTexture } from "./stone.ts"
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js"
 import { TILE_GRAIN, WALNUT, woodTexture } from "./wood.ts"
 
 export const SQUARE = 1
@@ -53,7 +55,11 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   renderer.toneMapping = THREE.ACESFilmicToneMapping
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x0d0e14)
+  scene.background = new THREE.Color(0xd9ccb4)
+  const environment = new THREE.PMREMGenerator(renderer)
+  scene.environment = environment.fromScene(new RoomEnvironment(), 0.04).texture
+  scene.environmentIntensity = 0.35
+  environment.dispose()
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
   camera.position.set(0, 9.5, 10.5)
   const controls = new OrbitControls(camera, canvas)
@@ -63,16 +69,13 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   controls.maxDistance = 20
   controls.target.set(0, 0, 0)
 
-  scene.add(new THREE.HemisphereLight(0xffe2b8, 0x1a1428, 0.35))
-  const key = new THREE.SpotLight(0xffc98a, 180, 40, Math.PI / 5, 0.6, 1.6)
+  scene.add(new THREE.HemisphereLight(0xe8eef8, 0xb39a78, 1.1))
+  const key = new THREE.SpotLight(0xfff2dc, 70, 40, Math.PI / 5, 0.7, 1.6)
   key.position.set(4, 11, 5)
   key.castShadow = true
   key.shadow.mapSize.set(2048, 2048)
   key.shadow.bias = -0.0005
   scene.add(key, key.target)
-  const rim = new THREE.DirectionalLight(0x6f86d6, 0.8)
-  rim.position.set(-6, 6, -8)
-  scene.add(rim)
   const hall = makeHall(scene)
 
   const board = new THREE.Group()
@@ -87,10 +90,11 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
   const trim = new THREE.Mesh(new THREE.BoxGeometry(8.3, 0.02, 8.3), new THREE.MeshStandardMaterial({ color: PALETTE.trim, roughness: 0.35, metalness: 0.7 }))
   trim.position.y = -0.045
   board.add(trim)
-  const plinthWood = walnut.clone()
-  plinthWood.repeat.set(1, 3)
-  plinthWood.rotation = Math.PI / 2
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 5), new THREE.MeshPhysicalMaterial({ map: plinthWood, bumpMap: plinthWood, bumpScale: 0.006, roughness: 0.6, clearcoat: 0.25 }))
+  const plinthStone = limestoneTexture()
+  plinthStone.repeat.set(1.2, 0.65)
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 5), new THREE.MeshStandardMaterial({ map: plinthStone, bumpMap: plinthStone, bumpScale: 0.03, color: 0xf4ece0, roughness: 0.85 }))
+  plinth.castShadow = true
+  plinth.receiveShadow = true
   plinth.position.y = -1.85
   board.add(plinth)
   const squares = new Map<Square, THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>>()
@@ -204,7 +208,7 @@ export const makeScene = (canvas: HTMLCanvasElement): Scene => {
       runeLight.intensity = rune.visible ? 3.5 + Math.sin(time * 5) * 0.8 : 0
       for (const marker of markers.children) marker.scale.setScalar(1 + Math.sin(time * 4) * 0.06)
       faceCamera(scene, camera)
-      if (!shockwave.render()) renderer.render(scene, camera)
+      shockwave.render()
     },
     shockwave(at) {
       return shockwave.burst(at)

@@ -32,9 +32,9 @@ export const makePieceLayer = (scene: Scene): PieceLayer => {
   const effects = makeEffects(scene.scene)
   let lifted: THREE.Group | null = null
   const warmup = scene.makePiece("b", "p")
-  igniteCharacter(warmup, EMBER)
-  scene.renderer.compile(warmup, scene.camera, scene.scene)
-  disposeCharacter(warmup)
+  igniteCharacter(warmup, EMBER).value = 1
+  warmup.traverse((object) => void (object.castShadow = false))
+  group.add(warmup)
 
   const discard = (figure: THREE.Group): void => {
     group.remove(figure)

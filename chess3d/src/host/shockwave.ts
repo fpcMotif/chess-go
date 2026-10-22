@@ -52,12 +52,12 @@ const shader = {
 
 export interface Shockwave {
   burst(at: THREE.Vector3): gsap.core.Timeline
-  render(): boolean
+  render(): void
   resize(width: number, height: number): void
 }
 
 export const makeShockwave = (renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): Shockwave => {
-  const composer = new EffectComposer(renderer)
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }))
   composer.addPass(new RenderPass(scene, camera))
   const pass = new ShaderPass(shader)
   composer.addPass(pass)
@@ -65,7 +65,6 @@ export const makeShockwave = (renderer: THREE.WebGLRenderer, scene: THREE.Scene,
   const uniforms = pass.uniforms as typeof shader.uniforms
   const projected = new THREE.Vector3()
   let active = 0
-  let compiled = false
   return {
     burst(at) {
       projected.copy(at).project(camera)
@@ -74,10 +73,8 @@ export const makeShockwave = (renderer: THREE.WebGLRenderer, scene: THREE.Scene,
       return gsap.timeline({ onComplete: () => void (active -= 1) }).fromTo(uniforms.uProgress, { value: 0 }, { value: 1, duration: SHOCKWAVE_SECONDS, ease: "power2.out" })
     },
     render() {
-      if (active === 0 && compiled) return false
+      pass.enabled = active > 0
       composer.render()
-      compiled = true
-      return true
     },
     resize(width, height) {
       composer.setPixelRatio(renderer.getPixelRatio())
