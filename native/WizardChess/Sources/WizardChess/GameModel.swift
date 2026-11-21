@@ -6,6 +6,7 @@ struct MoveEffect: Equatable {
   let move: Move
   let mover: Piece
   let victimSquare: Square?
+  let victim: Piece?
   let rook: (from: Square, to: Square)?
 
   static func == (a: MoveEffect, b: MoveEffect) -> Bool { a.id == b.id }
@@ -25,7 +26,19 @@ final class GameModel {
   private(set) var pendingPromotion: PendingPromotion?
   var flipped = false
   var saga = Saga.olympus
+  private(set) var banner: (id: Int, text: String, side: Side)?
   private var effectCount = 0
+  private var bannerTask: Task<Void, Never>?
+
+  private func proclaim(_ text: String, _ side: Side) {
+    effectCount += 1
+    banner = (effectCount, text, side)
+    bannerTask?.cancel()
+    bannerTask = Task { [id = effectCount] in
+      try? await Task.sleep(for: .seconds(3.2))
+      if !Task.isCancelled, banner?.id == id { banner = nil }
+    }
+  }
 
   var position: Position { game.position }
   var isOver: Bool { game.outcome != nil }
@@ -144,8 +157,21 @@ final class GameModel {
     effectCount += 1
     let rook: (Square, Square)? =
       before.isCastle(m) ? (m.to > m.from ? (m.from + 3, m.from + 1) : (m.from - 4, m.from - 1)) : nil
+    let victimSquare = before.capturedSquare(m)
+    let victim = victimSquare.flatMap { before[$0] }
     effect = MoveEffect(
-      id: effectCount, move: m, mover: mover, victimSquare: before.capturedSquare(m), rook: rook)
+      id: effectCount, move: m, mover: mover, victimSquare: victimSquare, victim: victim, rook: rook)
     selected = nil
+    let army = saga.army(mover.side)
+    if game.outcome == .checkmate {
+      let loser = saga.army(position.turn)
+      proclaim("\(loser.hero(.king)) falls. The \(army.name) rule.", mover.side)
+    } else if let victim {
+      proclaim("\(army.hero(mover.role)) \(mover.role.deed) \(saga.army(victim.side).hero(victim.role))", mover.side)
+    } else if position.isCheck {
+      proclaim("\(saga.army(position.turn).hero(.king)) is in peril", mover.side)
+    } else if m.promotion != nil {
+      proclaim("A \(army.hero(.pawn)) ascends", mover.side)
+    }
   }
 }

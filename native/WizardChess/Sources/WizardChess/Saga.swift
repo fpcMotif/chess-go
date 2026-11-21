@@ -13,6 +13,22 @@ struct Army {
   let accentIsMetal: Bool
   let strike: StrikeStyle
   let strikeColor: UInt32
+  let heroes: [Role: String]
+
+  func hero(_ role: Role) -> String { heroes[role] ?? "\(role)" }
+}
+
+extension Role {
+  var deed: String {
+    switch self {
+    case .pawn: "runs through"
+    case .knight: "tramples"
+    case .bishop: "banishes"
+    case .rook: "crushes"
+    case .queen: "unleashes the storm upon"
+    case .king: "passes judgement on"
+    }
+  }
 }
 
 struct Abyss {
@@ -52,10 +68,12 @@ struct Saga: Identifiable, Hashable {
     id: "olympus", title: "Olympus", tagline: "The Titanomachy: Olympians against Titans",
     white: Army(
       name: "Olympians", stone: .marble, tint: 0xF2ECDF, roughness: 0.55, accent: 0xE0B04A, accentIsMetal: true,
-      strike: .lightning, strikeColor: 0xFFF3C4),
+      strike: .lightning, strikeColor: 0xFFF3C4,
+      heroes: [.king: "Zeus", .queen: "Hera", .bishop: "Apollo", .knight: "Ares", .rook: "Hephaestus", .pawn: "Hoplite"]),
     black: Army(
       name: "Titans", stone: .slate, tint: 0x46424E, roughness: 0.45, accent: 0xFF4A1C, accentIsMetal: false,
-      strike: .lightning, strikeColor: 0xFF3B2F),
+      strike: .lightning, strikeColor: 0xFF3B2F,
+      heroes: [.king: "Cronus", .queen: "Rhea", .bishop: "Hyperion", .knight: "Atlas", .rook: "Typhon", .pawn: "Gigas"]),
     sky: 0x12071F, moon: 0xBFE9DA, rim: 0xC03CFF, under: 0x28E0C0, lightSquare: 0xD8D0BE, darkSquare: 0x564C6E,
     abyss: Abyss(style: 0, speed: 1, dark: 0x1A0A2E, bright: 0x9A4CFF, mote: 0xFFD98A, moteRises: true),
     monument: .columns)
@@ -64,10 +82,12 @@ struct Saga: Identifiable, Hashable {
     id: "ragnarok", title: "Ragnarök", tagline: "The twilight of the gods: Aesir against fire giants",
     white: Army(
       name: "Aesir", stone: .marble, tint: 0xDCE8F0, roughness: 0.35, accent: 0x8FE3FF, accentIsMetal: false,
-      strike: .beam, strikeColor: 0xBFF4FF),
+      strike: .beam, strikeColor: 0xBFF4FF,
+      heroes: [.king: "Odin", .queen: "Frigg", .bishop: "Heimdall", .knight: "Thor", .rook: "Tyr", .pawn: "Einherjar"]),
     black: Army(
       name: "Jötnar", stone: .slate, tint: 0x3A2A26, roughness: 0.6, accent: 0xFF7A1A, accentIsMetal: false,
-      strike: .meteor, strikeColor: 0xFF6A10),
+      strike: .meteor, strikeColor: 0xFF6A10,
+      heroes: [.king: "Surtr", .queen: "Hel", .bishop: "Loki", .knight: "Fenrir", .rook: "Jörmungandr", .pawn: "Draugr"]),
     sky: 0x03141A, moon: 0xE8F4FF, rim: 0x3CFFB0, under: 0xFF5A1F, lightSquare: 0xC9D6DC, darkSquare: 0x3C5260,
     abyss: Abyss(style: 1, speed: 0.8, dark: 0x04131C, bright: 0x2EDFA8, mote: 0xFF7A1A, moteRises: true),
     monument: .runestones)
@@ -76,10 +96,12 @@ struct Saga: Identifiable, Hashable {
     id: "duat", title: "Duat", tagline: "The weighing of the heart: Ra's court against Apep",
     white: Army(
       name: "Ra's court", stone: .marble, tint: 0xE9C98F, roughness: 0.7, accent: 0x2E5BFF, accentIsMetal: true,
-      strike: .beam, strikeColor: 0xFFD25A),
+      strike: .beam, strikeColor: 0xFFD25A,
+      heroes: [.king: "Ra", .queen: "Isis", .bishop: "Thoth", .knight: "Horus", .rook: "Anubis", .pawn: "Medjay"]),
     black: Army(
       name: "Serpents of Apep", stone: .slate, tint: 0x1E2A22, roughness: 0.3, accent: 0x5CFF6A,
-      accentIsMetal: false, strike: .lightning, strikeColor: 0x7CFF4A),
+      accentIsMetal: false, strike: .lightning, strikeColor: 0x7CFF4A,
+      heroes: [.king: "Apep", .queen: "Ammit", .bishop: "Set", .knight: "Sobek", .rook: "Babi", .pawn: "Cultist"]),
     sky: 0x1A0B05, moon: 0xFFB347, rim: 0xFF8A3C, under: 0x3CFF8A, lightSquare: 0xD9B98A, darkSquare: 0x2C4478,
     abyss: Abyss(style: 2, speed: 1, dark: 0x120B2A, bright: 0xFFC65A, mote: 0xFFE2A0, moteRises: false),
     monument: .obelisks)

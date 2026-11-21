@@ -34,8 +34,10 @@ final class ArenaView: ARView {
       arena.tick(1 / 30)
       try? await Task.sleep(for: .milliseconds(40))
       let image = await withCheckedContinuation { done in snapshot(saveToHDR: false) { done.resume(returning: $0) } }
-      if let tiff = image?.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
-        try? png.write(to: dir.appending(path: String(format: "frame_%04d.png", frame)))
+      if let tiff = image?.tiffRepresentation,
+        let jpg = NSBitmapImageRep(data: tiff)?.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+      {
+        try? jpg.write(to: dir.appending(path: String(format: "frame_%04d.jpg", frame)))
       }
       frame += 1
     }
@@ -104,7 +106,11 @@ struct BoardView: NSViewRepresentable {
       Task {
         await view.film(
           into: URL(filePath: String(path)), model: model,
-          scenes: [(["e4", "d5"], ["exd5", "Qxd5"]), (["f3", "e5", "g4"], ["Qh4#"])])
+          scenes: [
+            (["e4", "d5"], ["exd5", "Qxd5"]), (["e4", "d5", "Nf3", "e5"], ["Nxe5"]),
+            (["e4", "e5", "Bc4", "Nc6"], ["Bxf7+"]), (["h4", "g5", "hxg5", "h5"], ["Rxh5"]),
+            (["f3", "e5", "g4"], ["Qh4#"]),
+          ])
       }
     }
     return view

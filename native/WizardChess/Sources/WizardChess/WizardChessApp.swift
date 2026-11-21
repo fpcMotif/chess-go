@@ -41,7 +41,13 @@ struct ContentView: View {
       if let p = model.pendingPromotion {
         PromotionPicker(side: p.side) { model.choosePromotion($0) }
       }
+      if let b = model.banner {
+        Banner(text: b.text, color: Color(nsColor: NSColor(hex: model.saga.army(b.side).strikeColor)))
+          .id(b.id)
+          .transition(.asymmetric(insertion: .scale(scale: 1.6).combined(with: .opacity), removal: .opacity))
+      }
     }
+    .animation(.spring(duration: 0.5, bounce: 0.35), value: model.banner?.id)
     .preferredColorScheme(.dark)
   }
 
@@ -90,6 +96,27 @@ struct ContentView: View {
       }
       if CommandLine.arguments.contains("--demo") { model.replayOperaGame() }
     }
+  }
+}
+
+private struct Banner: View {
+  let text: String
+  let color: Color
+
+  var body: some View {
+    VStack {
+      Spacer().frame(height: 120)
+      Text(text.uppercased())
+        .font(.system(size: 34, weight: .black, design: .serif))
+        .tracking(4)
+        .multilineTextAlignment(.center)
+        .foregroundStyle(LinearGradient(colors: [.white, color], startPoint: .top, endPoint: .bottom))
+        .shadow(color: color.opacity(0.9), radius: 18)
+        .shadow(color: .black.opacity(0.8), radius: 3, y: 2)
+        .padding(.horizontal, 40)
+      Spacer()
+    }
+    .allowsHitTesting(false)
   }
 }
 
